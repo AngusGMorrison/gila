@@ -1,0 +1,8 @@
+# Ignore all to exclude binaries without file extensions.
+*
+
+# Unignore all files with extensions.
+!*.*
+
+# Unignore all dirs.
+!*/
