@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/term"
@@ -25,9 +26,10 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("enable terminal raw mode: %w", err)
 	}
-	defer func() {
-		err = term.Restore(int(os.Stdin.Fd()), initialTermState)
-	}()
+	defer func() { err = term.Restore(int(os.Stdin.Fd()), initialTermState) }()
+	// In raw mode, the cursor won't return to the start of the next line after the terminal echoes
+	// the command used to run the program, so we force the line feed.
+	fmt.Print("\r")
 
 	scanner := newScanner(os.Stdin)
 	for scanner.Scan() {
@@ -38,6 +40,12 @@ func run() (err error) {
 		r, _ := utf8.DecodeRune(scanner.Bytes())
 		if r == 'q' {
 			break
+		}
+
+		if unicode.IsControl(r) {
+			fmt.Printf("%d\r\n", r)
+		} else {
+			fmt.Printf("%d (%q)\r\n", r, r)
 		}
 	}
 
