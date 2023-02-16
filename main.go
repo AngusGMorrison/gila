@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"unicode/utf8"
+
+	"golang.org/x/term"
 )
 
 // Scan at most one UTF-8 character at a time.
@@ -17,7 +19,16 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
+	// Enable terminal raw mode to process each keypress as it happens.
+	initialTermState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("enable terminal raw mode: %w", err)
+	}
+	defer func() {
+		err = term.Restore(int(os.Stdin.Fd()), initialTermState)
+	}()
+
 	scanner := newScanner(os.Stdin)
 	for scanner.Scan() {
 		if err := scanner.Err(); err != nil {
