@@ -4,26 +4,27 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"unicode/utf8"
 )
 
 // Scan at most one UTF-8 character at a time.
 const scanMaxBytes = 4
-
-type key byte
-
-const (
-	keyQuit key = 'q'
-)
 
 type escapeSequence string
 
 const (
 	escCursorHide          escapeSequence = "\x1b[?25l"
 	escCursorShow          escapeSequence = "\x1b[?25h"
+	escCursorPosition      escapeSequence = "\x1b[%d;%dH"
 	escCursorTopLeft       escapeSequence = "\x1b[H"
 	escScreenClear         escapeSequence = "\x1b[2J"
 	escLineClearFromCursor escapeSequence = "\x1b[K"
 )
+
+// position represents 1-indexed x- and y-coordinates on a terminal.
+type position struct {
+	x, y uint
+}
 
 // Config contains editor configuration data.
 type Config struct {
@@ -34,19 +35,21 @@ type Config struct {
 // Editor holds the state for a text editor. Its methods run the main loop for reading and writing
 // input to and from a terminal.
 type Editor struct {
-	config   Config
-	scanner  *bufio.Scanner
-	out      *bufio.Writer
-	readErr  error
-	writeErr error
+	config         Config
+	scanner        *bufio.Scanner
+	out            *bufio.Writer
+	cursorPosition position
+	readErr        error
+	writeErr       error
 }
 
 // New returns a new *Editor that reads from r and writes to w.
 func New(r io.Reader, w io.Writer, config Config) *Editor {
 	return &Editor{
-		config:  config,
-		scanner: newScanner(r),
-		out:     bufio.NewWriter(w),
+		config:         config,
+		scanner:        newScanner(r),
+		out:            bufio.NewWriter(w),
+		cursorPosition: position{1, 1},
 	}
 }
 
@@ -79,12 +82,18 @@ func (e *Editor) processKeypress() bool {
 		return false
 	}
 
-	// Check for commands in the ASCII range before attempting to interpret Unicode.
+	// Check for chords in the ASCII range before attempting to interpret Unicode.
 	if len(rawKey) == 1 {
-		switch key(rawKey[0]) {
-		case ctrlChord(keyQuit): // quit
+		switch rawKey[0] {
+		case ctrlChord('q'): // quit
 			return false
 		}
+	}
+
+	key, _ := utf8.DecodeRune(rawKey)
+	switch key {
+	case 'h', 'j', 'k', 'l':
+		e.moveCursor(key)
 	}
 
 	return true
@@ -117,7 +126,7 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.flush(); err != nil {
+	if err := e.writeEscapeSeq(escCursorPosition, e.cursorPosition.y, e.cursorPosition.x); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -125,11 +134,15 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
+	if err := e.flush(); err != nil {
+		e.writeErr = err
+		return false
+	}
 	return true
 }
 
-func (e *Editor) writeEscapeSeq(esc escapeSequence) error {
-	if _, err := e.out.WriteString(string(esc)); err != nil {
+func (e *Editor) writeEscapeSeq(esc escapeSequence, args ...any) error {
+	if _, err := fmt.Fprintf(e.out, string(esc), args...); err != nil {
 		return fmt.Errorf("write escape sequence %q: %w", esc, err)
 	}
 	return nil
@@ -183,6 +196,29 @@ func (e *Editor) drawRows() error {
 	return nil
 }
 
+func (e *Editor) moveCursor(cursorKey rune) {
+	switch cursorKey {
+	case 'h':
+		if e.cursorPosition.x > 1 {
+			e.cursorPosition.x--
+		}
+	case 'j':
+		if e.cursorPosition.y < e.config.Height {
+			e.cursorPosition.y++
+		}
+	case 'k':
+		if e.cursorPosition.y > 1 {
+			e.cursorPosition.y--
+		}
+	case 'l':
+		if e.cursorPosition.x < e.config.Width {
+			e.cursorPosition.x++
+		}
+	default:
+		panic(fmt.Errorf("unrecognized cursor key %q", cursorKey))
+	}
+}
+
 func newScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
 	scanBuf := make([]byte, scanMaxBytes)
@@ -210,7 +246,7 @@ const (
 	ctrlMask = 0x1f
 )
 
-func ctrlChord(k key) key {
+func ctrlChord(k byte) byte {
 	return k & ctrlMask
 }
 
