@@ -30,6 +30,9 @@ func run() (err error) {
 	fmt.Print("\r")
 
 	editor := newEditor(os.Stdin, os.Stdout)
+	// Clear the editor screen on exit.
+	defer func() { err = editor.refreshScreen() }()
+
 	for editor.processKeypress() {
 	}
 	if err := editor.Err(); err != nil {
@@ -41,19 +44,32 @@ func run() (err error) {
 
 type editor struct {
 	scanner *bufio.Scanner
-	out     io.Writer
+	out     *bufio.Writer
 	err     error
 }
 
 func newEditor(r io.Reader, w io.Writer) *editor {
 	return &editor{
 		scanner: newScanner(r),
-		out:     w,
+		out:     bufio.NewWriter(w),
 	}
 }
 
 func (e *editor) Err() error {
 	return e.err
+}
+
+func (e *editor) refreshScreen() error {
+	if _, err := e.out.WriteString(string(escClearScreen)); err != nil {
+		return fmt.Errorf("clear screen: %w", err)
+	}
+	if _, err := e.out.WriteString(string(escCursorTopLeft)); err != nil {
+		return fmt.Errorf("position cursor: %w", err)
+	}
+	if err := e.out.Flush(); err != nil {
+		return fmt.Errorf("flush (*editor).out: %w", err)
+	}
+	return nil
 }
 
 func (e *editor) processKeypress() bool {
@@ -111,4 +127,11 @@ type key byte
 
 const (
 	keyQuit key = 'q'
+)
+
+type escapeSequence string
+
+const (
+	escClearScreen   escapeSequence = "\x1b[2J"
+	escCursorTopLeft escapeSequence = "\x1b[H"
 )
