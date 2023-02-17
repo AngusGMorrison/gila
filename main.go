@@ -38,9 +38,12 @@ func run() (err error) {
 	// Clear the editor screen on exit.
 	defer func() { err = editor.clearScreen() }()
 
-	for editor.processKeypress() {
+	for editor.refreshScreen() && editor.processKeypress() {
 	}
-	if err := editor.Err(); err != nil {
+	if err := editor.ReadErr(); err != nil {
+		return err
+	}
+	if err := editor.WriteErr(); err != nil {
 		return err
 	}
 
@@ -52,10 +55,11 @@ type editorConfig struct {
 }
 
 type editor struct {
-	config  editorConfig
-	scanner *bufio.Scanner
-	out     *bufio.Writer
-	err     error
+	config   editorConfig
+	scanner  *bufio.Scanner
+	out      *bufio.Writer
+	readErr  error
+	writeErr error
 }
 
 func newEditor(r io.Reader, w io.Writer, config editorConfig) *editor {
@@ -66,14 +70,21 @@ func newEditor(r io.Reader, w io.Writer, config editorConfig) *editor {
 	}
 }
 
-func (e *editor) Err() error {
-	return e.err
+func (e *editor) ReadErr() error {
+	return e.readErr
 }
 
+func (e *editor) WriteErr() error {
+	return e.readErr
+}
+
+// processKeypress is designed to be called in a tight loop. By returning a boolean, it is easily
+// incorporated into a loop condition. If an error occurs during the refresh, it is saved to
+// (*editor).readErr, and processKeypress returns false.
 func (e *editor) processKeypress() bool {
 	rawKey, err := e.readKey()
 	if err != nil {
-		e.err = err
+		e.readErr = err
 		return false
 	}
 	if rawKey == nil {
@@ -102,14 +113,19 @@ func (e *editor) readKey() ([]byte, error) {
 	return e.scanner.Bytes(), nil
 }
 
-func (e *editor) refreshScreen() error {
+// refreshScreen is designed to be called in a tight loop. By returning a boolean, it is easily
+// incorporated into a loop condition. If an error occurs during the refresh, it is saved to
+// (*editor).writeErr, and refreshScreen returns false.
+func (e *editor) refreshScreen() bool {
 	if err := e.clearScreen(); err != nil {
-		return err
+		e.writeErr = err
+		return false
 	}
 	if err := e.drawRows(); err != nil {
-		return err
+		e.writeErr = err
+		return false
 	}
-	return nil
+	return true
 }
 
 func (e *editor) clearScreen() error {
@@ -126,10 +142,13 @@ func (e *editor) clearScreen() error {
 }
 
 func (e *editor) drawRows() error {
-	for y := uint(0); y < e.config.height; y++ {
+	for y := uint(0); y < e.config.height-1; y++ {
 		if _, err := e.out.WriteString("~\r\n"); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
+	}
+	if err := e.out.WriteByte('~'); err != nil { // no newline for final row
+		return fmt.Errorf("write row: %w", err)
 	}
 	if err := e.out.Flush(); err != nil {
 		return fmt.Errorf("flush row: %w", err)
