@@ -18,10 +18,11 @@ const (
 type escapeSequence string
 
 const (
-	escScreenClear   escapeSequence = "\x1b[2J"
-	escCursorHide    escapeSequence = "\x1b[?25l"
-	escCursorShow    escapeSequence = "\x1b[?25h"
-	escCursorTopLeft escapeSequence = "\x1b[H"
+	escCursorHide          escapeSequence = "\x1b[?25l"
+	escCursorShow          escapeSequence = "\x1b[?25h"
+	escCursorTopLeft       escapeSequence = "\x1b[H"
+	escScreenClear         escapeSequence = "\x1b[2J"
+	escLineClearFromCursor escapeSequence = "\x1b[K"
 )
 
 // Config contains editor configuration data.
@@ -51,7 +52,7 @@ func New(r io.Reader, w io.Writer, config Config) *Editor {
 // Run starts the editor loop. The editor will update the screen and process user input until
 // commanded to quit or an error occurs.
 func (e *Editor) Run() (err error) {
-	defer e.clearFlush()
+	defer e.clearScreen()
 
 	for e.refreshScreen() && e.processKeypress() {
 	}
@@ -107,7 +108,7 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.clear(); err != nil {
+	if err := e.writeEscapeSeq(escCursorTopLeft); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -133,21 +134,14 @@ func (e *Editor) writeEscapeSeq(esc escapeSequence) error {
 	return nil
 }
 
-func (e *Editor) clearFlush() error {
-	if err := e.clear(); err != nil {
-		return err
-	}
-	return e.flush()
-}
-
-func (e *Editor) clear() error {
+func (e *Editor) clearScreen() error {
 	if err := e.writeEscapeSeq(escScreenClear); err != nil {
 		return err
 	}
 	if err := e.writeEscapeSeq(escCursorTopLeft); err != nil {
 		return err
 	}
-	return nil
+	return e.flush()
 }
 
 func (e *Editor) flush() error {
@@ -158,14 +152,22 @@ func (e *Editor) flush() error {
 }
 
 func (e *Editor) drawRows() error {
-	for y := uint(0); y < e.config.Height-1; y++ {
-		if _, err := e.out.WriteString("~\r\n"); err != nil {
+	for y := uint(0); y < e.config.Height; y++ {
+		if err := e.out.WriteByte('~'); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
+		// Clear the remains of the old line that have not been overwritten.
+		if err := e.writeEscapeSeq(escLineClearFromCursor); err != nil {
+			return err
+		}
+		// Add a new line to all but the last line of the screen.
+		if y < e.config.Height-1 {
+			if _, err := e.out.WriteString("\r\n"); err != nil {
+				return fmt.Errorf("write row: %w", err)
+			}
+		}
 	}
-	if err := e.out.WriteByte('~'); err != nil { // no newline for final row
-		return fmt.Errorf("write row: %w", err)
-	}
+
 	return nil
 }
 
