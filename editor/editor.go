@@ -103,7 +103,7 @@ func (e *Editor) readKey() ([]byte, error) {
 // incorporated into a loop condition. If an error occurs during the refresh, it is saved to
 // (*editor).writeErr, and refreshScreen returns false.
 func (e *Editor) refreshScreen() bool {
-	if err := e.hideCursor(); err != nil {
+	if err := e.writeEscapeSeq(escCursorHide); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -119,23 +119,16 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.showCursor(); err != nil {
+	if err := e.writeEscapeSeq(escCursorShow); err != nil {
 		e.writeErr = err
 		return false
 	}
 	return true
 }
 
-func (e *Editor) hideCursor() error {
-	if _, err := e.out.WriteString(string(escCursorHide)); err != nil {
-		return fmt.Errorf("hide cursor: %w", err)
-	}
-	return nil
-}
-
-func (e *Editor) showCursor() error {
-	if _, err := e.out.WriteString(string(escCursorShow)); err != nil {
-		return fmt.Errorf("hide cursor: %w", err)
+func (e *Editor) writeEscapeSeq(esc escapeSequence) error {
+	if _, err := e.out.WriteString(string(esc)); err != nil {
+		return fmt.Errorf("write escape sequence %q: %w", esc, err)
 	}
 	return nil
 }
@@ -148,11 +141,11 @@ func (e *Editor) clearFlush() error {
 }
 
 func (e *Editor) clear() error {
-	if _, err := e.out.WriteString(string(escScreenClear)); err != nil {
-		return fmt.Errorf("clear screen: %w", err)
+	if err := e.writeEscapeSeq(escScreenClear); err != nil {
+		return err
 	}
-	if _, err := e.out.WriteString(string(escCursorTopLeft)); err != nil {
-		return fmt.Errorf("position cursor: %w", err)
+	if err := e.writeEscapeSeq(escCursorTopLeft); err != nil {
+		return err
 	}
 	return nil
 }
