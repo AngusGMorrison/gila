@@ -27,6 +27,7 @@ const (
 
 // Config contains editor configuration data.
 type Config struct {
+	Name, Version string
 	Width, Height uint
 }
 
@@ -153,8 +154,19 @@ func (e *Editor) flush() error {
 
 func (e *Editor) drawRows() error {
 	for y := uint(0); y < e.config.Height; y++ {
-		if err := e.out.WriteByte('~'); err != nil {
-			return fmt.Errorf("write row: %w", err)
+		if y == (e.config.Height / 3) {
+			// Write the welcome message.
+			welcome := e.welcomeMessage()
+			centered := center(welcome, e.config.Width)
+			// Truncate the welcome message if it is too long for the screen.
+			truncated := centered[:min(len(centered), int(e.config.Width))]
+			if _, err := e.out.WriteString(truncated); err != nil {
+				return fmt.Errorf("write row: %w", err)
+			}
+		} else {
+			if err := e.out.WriteByte('~'); err != nil {
+				return fmt.Errorf("write row: %w", err)
+			}
 		}
 		// Clear the remains of the old line that have not been overwritten.
 		if err := e.writeEscapeSeq(escLineClearFromCursor); err != nil {
@@ -179,6 +191,18 @@ func newScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
+func (e *Editor) welcomeMessage() string {
+	return fmt.Sprintf("%s -- version %s", e.config.Name, e.config.Version)
+}
+
+func center(s string, width uint) string {
+	leftPadding := (int(width) + len(s)) / 2
+	rightPadding := -int(width) // Go interprets negative values as padding from the right
+	// Bring the right margin all the way over to the left, then add half (screen width + string
+	// len) to push the text into the middle.
+	return fmt.Sprintf("%*s", rightPadding, fmt.Sprintf("%*s", leftPadding, s))
+}
+
 const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
 	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
@@ -188,4 +212,11 @@ const (
 
 func ctrlChord(k key) key {
 	return k & ctrlMask
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/angusgmorrison/gila/editor"
 	"golang.org/x/term"
@@ -29,7 +30,14 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("get terminal size: %w", err)
 	}
-	config := editor.Config{Width: uint(w), Height: uint(h)}
+
+	info, _ := debug.ReadBuildInfo()
+	config := editor.Config{
+		Name:    "Gila editor",
+		Version: info.Main.Version,
+		Width:   uint(w),
+		Height:  uint(h),
+	}
 	ed := editor.New(os.Stdin, os.Stdout, config)
 	return ed.Run()
 }
