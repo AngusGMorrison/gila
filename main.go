@@ -29,9 +29,14 @@ func run() (err error) {
 	// the command used to run the program, so we force the line feed.
 	fmt.Print("\r")
 
-	editor := newEditor(os.Stdin, os.Stdout)
+	w, h, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("get terminal size: %w", err)
+	}
+	config := editorConfig{width: uint(w), height: uint(h)}
+	editor := newEditor(os.Stdin, os.Stdout, config)
 	// Clear the editor screen on exit.
-	defer func() { err = editor.refreshScreen() }()
+	defer func() { err = editor.clearScreen() }()
 
 	for editor.processKeypress() {
 	}
@@ -42,14 +47,20 @@ func run() (err error) {
 	return nil
 }
 
+type editorConfig struct {
+	width, height uint
+}
+
 type editor struct {
+	config  editorConfig
 	scanner *bufio.Scanner
 	out     *bufio.Writer
 	err     error
 }
 
-func newEditor(r io.Reader, w io.Writer) *editor {
+func newEditor(r io.Reader, w io.Writer, config editorConfig) *editor {
 	return &editor{
+		config:  config,
 		scanner: newScanner(r),
 		out:     bufio.NewWriter(w),
 	}
@@ -57,19 +68,6 @@ func newEditor(r io.Reader, w io.Writer) *editor {
 
 func (e *editor) Err() error {
 	return e.err
-}
-
-func (e *editor) refreshScreen() error {
-	if _, err := e.out.WriteString(string(escClearScreen)); err != nil {
-		return fmt.Errorf("clear screen: %w", err)
-	}
-	if _, err := e.out.WriteString(string(escCursorTopLeft)); err != nil {
-		return fmt.Errorf("position cursor: %w", err)
-	}
-	if err := e.out.Flush(); err != nil {
-		return fmt.Errorf("flush (*editor).out: %w", err)
-	}
-	return nil
 }
 
 func (e *editor) processKeypress() bool {
@@ -102,6 +100,41 @@ func (e *editor) readKey() ([]byte, error) {
 	}
 
 	return e.scanner.Bytes(), nil
+}
+
+func (e *editor) refreshScreen() error {
+	if err := e.clearScreen(); err != nil {
+		return err
+	}
+	if err := e.drawRows(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *editor) clearScreen() error {
+	if _, err := e.out.WriteString(string(escClearScreen)); err != nil {
+		return fmt.Errorf("clear screen: %w", err)
+	}
+	if _, err := e.out.WriteString(string(escCursorTopLeft)); err != nil {
+		return fmt.Errorf("position cursor: %w", err)
+	}
+	if err := e.out.Flush(); err != nil {
+		return fmt.Errorf("flush screen clear: %w", err)
+	}
+	return nil
+}
+
+func (e *editor) drawRows() error {
+	for y := uint(0); y < e.config.height; y++ {
+		if _, err := e.out.WriteString("~\r\n"); err != nil {
+			return fmt.Errorf("write row: %w", err)
+		}
+	}
+	if err := e.out.Flush(); err != nil {
+		return fmt.Errorf("flush row: %w", err)
+	}
+	return nil
 }
 
 func newScanner(r io.Reader) *bufio.Scanner {
