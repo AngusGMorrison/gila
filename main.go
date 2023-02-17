@@ -36,7 +36,7 @@ func run() (err error) {
 	config := editorConfig{width: uint(w), height: uint(h)}
 	editor := newEditor(os.Stdin, os.Stdout, config)
 	// Clear the editor screen on exit.
-	defer func() { err = editor.clearScreen() }()
+	defer func() { err = editor.Clear() }()
 
 	for editor.refreshScreen() && editor.processKeypress() {
 	}
@@ -125,7 +125,28 @@ func (e *editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
+	if err := e.flush(); err != nil {
+		e.writeErr = err
+		return false
+	}
 	return true
+}
+
+func (e *editor) Clear() error {
+	if err := e.clearScreen(); err != nil {
+		return err
+	}
+	if err := e.flush(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *editor) flush() error {
+	if err := e.out.Flush(); err != nil {
+		return fmt.Errorf("flush output buffer: %w", err)
+	}
+	return nil
 }
 
 func (e *editor) clearScreen() error {
@@ -134,9 +155,6 @@ func (e *editor) clearScreen() error {
 	}
 	if _, err := e.out.WriteString(string(escCursorTopLeft)); err != nil {
 		return fmt.Errorf("position cursor: %w", err)
-	}
-	if err := e.out.Flush(); err != nil {
-		return fmt.Errorf("flush screen clear: %w", err)
 	}
 	return nil
 }
@@ -149,9 +167,6 @@ func (e *editor) drawRows() error {
 	}
 	if err := e.out.WriteByte('~'); err != nil { // no newline for final row
 		return fmt.Errorf("write row: %w", err)
-	}
-	if err := e.out.Flush(); err != nil {
-		return fmt.Errorf("flush row: %w", err)
 	}
 	return nil
 }
