@@ -68,10 +68,8 @@ func (e *editor) processKeypress() bool {
 
 	// Check for commands in the ASCII range before attempting to interpret Unicode.
 	if len(rawKey) == 1 {
-		fmt.Printf("received byte: %d, %d, %d\n\r", rawKey[0], key(rawKey[0]), ctrlChord(keyQuit))
 		switch key(rawKey[0]) {
 		case ctrlChord(keyQuit): // quit
-			fmt.Println("quit signal")
 			return false
 		}
 	}
