@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"runtime/debug"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/angusgmorrison/gila/escseq"
 	"golang.org/x/term"
 )
+
+const logFile = "editor.log"
 
 func main() {
 	if err := run(); err != nil {
@@ -42,6 +45,14 @@ func run() (err error) {
 	}
 	keyReader := bufio.NewKeyReader(os.Stdin, escseq.MaxLenBytes)
 	terminalWriter := bufio.NewTerminalWriter(os.Stdout)
-	ed := editor.New(keyReader, terminalWriter, config)
+
+	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
+	defer f.Close()
+	logger := log.New(f, "", log.LstdFlags|log.Lshortfile)
+
+	ed := editor.New(keyReader, terminalWriter, config, logger)
 	return ed.Run()
 }

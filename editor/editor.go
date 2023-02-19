@@ -24,6 +24,12 @@ type TerminalWriter interface {
 	WriteEscapeSequence(e escseq.EscSeq, args ...any) (int, error)
 }
 
+// Logger represents the minimal set of methods used to log the editor's workings.
+type Logger interface {
+	Println(a ...any)
+	Printf(fmt string, a ...any)
+}
+
 const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
 	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
@@ -31,6 +37,8 @@ const (
 	ctrlMask    = 0x1f
 	keyEsc      = '\x1b'
 	keyDown     = 'j'
+	keyEnd      = 65367
+	keyHome     = 65360
 	keyLeft     = 'h'
 	keyPageUp   = 65365
 	keyPageDown = 65366
@@ -59,15 +67,17 @@ type Editor struct {
 	w              TerminalWriter
 	readErr        error
 	writeErr       error
+	logger         Logger // TODO: make logging debug-only
 }
 
 // New returns a new *Editor that reads from kr and writes to tw.
-func New(kr KeyReader, tw TerminalWriter, config Config) *Editor {
+func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor {
 	return &Editor{
 		config:         config,
 		r:              kr,
 		w:              tw,
 		cursorPosition: position{1, 1},
+		logger:         logger,
 	}
 }
 
@@ -96,11 +106,13 @@ func (e *Editor) processKeypress() bool {
 		e.readErr = err
 		return false
 	}
+	e.logger.Printf("read raw key %q\n", string(rawKey))
 
 	key := transliterateKeypress(rawKey)
 	if key == 0 { // EOF, return without error
 		return false
 	}
+	e.logger.Printf("transliterated %q to %q\n", string(rawKey), key)
 
 	switch key {
 	case keyQuit:
@@ -113,7 +125,7 @@ func (e *Editor) processKeypress() bool {
 		for i := e.config.Height; i > 0; i-- {
 			e.moveCursor(keyDown)
 		}
-	case keyLeft, keyDown, keyUp, keyRight:
+	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight:
 		e.moveCursor(key)
 	}
 
@@ -194,6 +206,10 @@ func (e *Editor) drawRows() error {
 
 func (e *Editor) moveCursor(cursorKey rune) {
 	switch cursorKey {
+	case keyHome:
+		e.cursorPosition.x = 1
+	case keyEnd:
+		e.cursorPosition.x = e.config.Width
 	case keyLeft:
 		if e.cursorPosition.x > 1 {
 			e.cursorPosition.x--
@@ -224,29 +240,50 @@ func transliterateKeypress(kp []byte) rune {
 	if len(kp) == 0 {
 		return 0
 	}
-
-	// Transliterate escape sequences.
+	// Transliterate escape sequences. Due to differences between terminal emulators, there may be
+	// several ways to represent the same escape sequence.
 	if isEscapeSequence(kp) {
-		switch len(kp) {
-		case 4:
-			if kp[3] == '~' {
+		if kp[1] == '[' {
+			switch len(kp) {
+			case 4:
+				if kp[3] == '~' {
+					switch kp[2] {
+					case '1':
+						return keyHome
+					case '4':
+						return keyEnd
+					case '5':
+						return keyPageUp
+					case '6':
+						return keyPageDown
+					case '7':
+						return keyHome
+					case '8':
+						return keyEnd
+					}
+				}
+			case 3:
 				switch kp[2] {
-				case '5':
-					return keyPageUp
-				case '6':
-					return keyPageDown
+				case 'A':
+					return keyUp
+				case 'B':
+					return keyDown
+				case 'C':
+					return keyRight
+				case 'D':
+					return keyLeft
+				case 'H':
+					return keyHome
+				case 'F':
+					return keyEnd
 				}
 			}
-		case 3:
+		} else if kp[1] == 'O' {
 			switch kp[2] {
-			case 'A':
-				return keyUp
-			case 'B':
-				return keyDown
-			case 'C':
-				return keyRight
-			case 'D':
-				return keyLeft
+			case 'H':
+				return keyHome
+			case 'F':
+				return keyEnd
 			}
 		}
 	}
@@ -261,7 +298,7 @@ func isEscapeSequence(keypress []byte) bool {
 	if len(keypress) <= 1 {
 		return false
 	}
-	if keypress[1] == '[' {
+	if keypress[1] == '[' || keypress[1] == 'O' {
 		return true
 	}
 	return false
