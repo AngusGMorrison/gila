@@ -35,6 +35,7 @@ const (
 	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
 	// (indexed from 0).
 	ctrlMask    = 0x1f
+	keyDel      = 127
 	keyEsc      = '\x1b'
 	keyDown     = 'j'
 	keyEnd      = 65367
@@ -250,6 +251,8 @@ func transliterateKeypress(kp []byte) rune {
 					switch kp[2] {
 					case '1':
 						return keyHome
+					case '3':
+						return keyDel
 					case '4':
 						return keyEnd
 					case '5':
