@@ -30,22 +30,29 @@ type Logger interface {
 	Printf(fmt string, a ...any)
 }
 
+// keynum is an enumerable that incoroprates all Unicode symbols and additionally defines
+// representations for keys with special functions.
+type keynum rune
+
+const (
+	keyDel keynum = iota + 1e6 // start the function key definitions beyond the Unicode range
+	keyDown
+	keyEnd
+	keyHome
+	keyLeft
+	keyPageUp
+	keyPageDown
+	keyRight
+	keyUp
+)
+
+// Chords.
 const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
 	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
 	// (indexed from 0).
-	ctrlMask    = 0x1f
-	keyDel      = 127
-	keyEsc      = '\x1b'
-	keyDown     = 'j'
-	keyEnd      = 65367
-	keyHome     = 65360
-	keyLeft     = 'h'
-	keyPageUp   = 65365
-	keyPageDown = 65366
-	keyRight    = 'l'
-	keyUp       = 'k'
-	keyQuit     = 'q' & ctrlMask
+	ctrlMask  = 0x1f
+	chordQuit = 'q' & ctrlMask
 )
 
 // position represents 1-indexed x- and y-coordinates on a terminal.
@@ -116,7 +123,7 @@ func (e *Editor) processKeypress() bool {
 	e.logger.Printf("transliterated %q to %q\n", string(rawKey), key)
 
 	switch key {
-	case keyQuit:
+	case chordQuit:
 		return false
 	case keyPageUp:
 		for i := e.config.Height; i > 0; i-- {
@@ -205,8 +212,8 @@ func (e *Editor) drawRows() error {
 	return nil
 }
 
-func (e *Editor) moveCursor(cursorKey rune) {
-	switch cursorKey {
+func (e *Editor) moveCursor(key keynum) {
+	switch key {
 	case keyHome:
 		e.cursorPosition.x = 1
 	case keyEnd:
@@ -228,7 +235,7 @@ func (e *Editor) moveCursor(cursorKey rune) {
 			e.cursorPosition.x++
 		}
 	default:
-		panic(fmt.Errorf("unrecognized cursor key %q", cursorKey))
+		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 }
 
@@ -237,7 +244,7 @@ func (e *Editor) welcomeMessage() string {
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
-func transliterateKeypress(kp []byte) rune {
+func transliterateKeypress(kp []byte) keynum {
 	if len(kp) == 0 {
 		return 0
 	}
@@ -292,7 +299,7 @@ func transliterateKeypress(kp []byte) rune {
 	}
 
 	r, _ := utf8.DecodeRune(kp)
-	return r
+	return keynum(r)
 }
 
 // isEscapeSequence returns true if the keypress represents an escape sequence. The escape key
