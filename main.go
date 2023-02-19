@@ -21,6 +21,11 @@ func main() {
 }
 
 func run() (err error) {
+	var filepath string
+	if len(os.Args) > 1 {
+		filepath = os.Args[1]
+	}
+
 	// Enable terminal raw mode to process each keypress as it happens.
 	initialTermState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -54,5 +59,5 @@ func run() (err error) {
 	logger := log.New(f, "", log.LstdFlags|log.Lshortfile)
 
 	ed := editor.New(keyReader, terminalWriter, config, logger)
-	return ed.Run()
+	return ed.Run(filepath)
 }

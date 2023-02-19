@@ -1,8 +1,10 @@
 package editor
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"unicode/utf8"
 
 	"github.com/angusgmorrison/gila/escseq"
@@ -71,6 +73,8 @@ type Config struct {
 type Editor struct {
 	config         Config
 	cursorPosition position
+	nLines         uint
+	line           string
 	r              KeyReader
 	w              TerminalWriter
 	readErr        error
@@ -91,8 +95,14 @@ func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor 
 
 // Run starts the editor loop. The editor will update the screen and process user input until
 // commanded to quit or an error occurs.
-func (e *Editor) Run() (err error) {
+func (e *Editor) Run(filepath string) (err error) {
 	defer e.clearScreen()
+
+	if filepath != "" {
+		if err = e.open(filepath); err != nil {
+			return err
+		}
+	}
 
 	for e.refreshScreen() && e.processKeypress() {
 	}
@@ -102,6 +112,25 @@ func (e *Editor) Run() (err error) {
 	if e.writeErr != nil {
 		return e.writeErr
 	}
+	return nil
+}
+
+func (e *Editor) open(path string) (err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { err = f.Close() }()
+
+	scanner := bufio.NewScanner(f)
+	if !scanner.Scan() {
+		if err = scanner.Err(); err != nil {
+			return fmt.Errorf("scan line from %s: %w", path, err)
+		}
+		return nil // EOF
+	}
+	e.line = scanner.Text()
+	e.nLines = 1
 	return nil
 }
 
@@ -152,7 +181,7 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.drawRows(); err != nil {
+	if err := e.drawLines(); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -181,22 +210,28 @@ func (e *Editor) clearScreen() error {
 	return e.w.Flush()
 }
 
-func (e *Editor) drawRows() error {
-	for y := uint(0); y < e.config.Height; y++ {
-		if y == (e.config.Height / 3) {
-			// Write the welcome message.
-			welcome := e.welcomeMessage()
-			centered := center(welcome, e.config.Width)
-			// Truncate the welcome message if it is too long for the screen.
-			truncated := centered[:min(len(centered), int(e.config.Width))]
-			if _, err := e.w.WriteString(truncated); err != nil {
-				return fmt.Errorf("write row: %w", err)
+func (e *Editor) drawLines() error {
+	for y := uint(1); y < e.config.Height; y++ {
+		if y <= e.nLines { // inside the text buffer
+			writeMax := min(len(e.line), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
+			if _, err := e.w.WriteString(e.line[:writeMax]); err != nil {
+				return fmt.Errorf("write line: %w", err)
 			}
-		} else {
-			if err := e.w.WriteByte('~'); err != nil {
-				return fmt.Errorf("write row: %w", err)
+		} else { // after the text buffer
+			if e.nLines == 0 && y == (e.config.Height/3) { // display the welcome message
+				welcome := center(e.welcomeMessage(), e.config.Width)
+				// Truncate the welcome message if it is too long for the screen.
+				writeMax := min(len(welcome), int(e.config.Width))
+				if _, err := e.w.WriteString(welcome[:writeMax]); err != nil {
+					return fmt.Errorf("write line: %w", err)
+				}
+			} else {
+				if err := e.w.WriteByte('~'); err != nil {
+					return fmt.Errorf("write line: %w", err)
+				}
 			}
 		}
+
 		// Clear the remains of the old line that have not been overwritten.
 		if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
 			return err
@@ -204,7 +239,7 @@ func (e *Editor) drawRows() error {
 		// Add a new line to all but the last line of the screen.
 		if y < e.config.Height-1 {
 			if _, err := e.w.WriteString("\r\n"); err != nil {
-				return fmt.Errorf("write row: %w", err)
+				return fmt.Errorf("write line: %w", err)
 			}
 		}
 	}
