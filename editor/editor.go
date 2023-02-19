@@ -10,6 +10,9 @@ import (
 	"github.com/angusgmorrison/gila/escseq"
 )
 
+// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of text.
+const nLinesToPreallocate = 1024
+
 // KeyReader reads a single keystroke or chord from input and returns its raw bytes.
 type KeyReader interface {
 	ReadKey() ([]byte, error)
@@ -73,13 +76,15 @@ type Config struct {
 type Editor struct {
 	config         Config
 	cursorPosition position
-	nLines         uint
-	line           string
-	r              KeyReader
-	w              TerminalWriter
-	readErr        error
-	writeErr       error
-	logger         Logger // TODO: make logging debug-only
+	// The text in the buffer.
+	lines []string
+	// Tracks the row the user is scrolled to.
+	lineOffset uint
+	r          KeyReader
+	w          TerminalWriter
+	readErr    error
+	writeErr   error
+	logger     Logger // TODO: make logging debug-only
 }
 
 // New returns a new *Editor that reads from kr and writes to tw.
@@ -115,6 +120,7 @@ func (e *Editor) Run(filepath string) (err error) {
 	return nil
 }
 
+// open opens the file at path and reads its lines into memory.
 func (e *Editor) open(path string) (err error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -122,16 +128,15 @@ func (e *Editor) open(path string) (err error) {
 	}
 	defer func() { err = f.Close() }()
 
+	e.lines = make([]string, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
-	if !scanner.Scan() {
-		if err = scanner.Err(); err != nil {
-			return fmt.Errorf("scan line from %s: %w", path, err)
-		}
-		return nil // EOF
+	for scanner.Scan() {
+		e.lines = append(e.lines, scanner.Text())
 	}
-	e.line = scanner.Text()
-	e.nLines = 1
-	return nil
+	if err = scanner.Err(); err != nil {
+		return fmt.Errorf("scan line from %s: %w", path, err)
+	}
+	return nil // EOF
 }
 
 // processKeypress is designed to be called in a tight loop. By returning a boolean, it is easily
@@ -173,6 +178,8 @@ func (e *Editor) processKeypress() bool {
 // incorporated into a loop condition. If an error occurs during the refresh, it is saved to
 // (*editor).writeErr, and refreshScreen returns false.
 func (e *Editor) refreshScreen() bool {
+	e.scroll()
+
 	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorHide); err != nil {
 		e.writeErr = err
 		return false
@@ -185,7 +192,11 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorPosition, e.cursorPosition.y, e.cursorPosition.x); err != nil {
+	if _, err := e.w.WriteEscapeSequence(
+		escseq.EscCursorPosition,
+		e.cursorPosition.y-e.lineOffset,
+		e.cursorPosition.x,
+	); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -211,14 +222,16 @@ func (e *Editor) clearScreen() error {
 }
 
 func (e *Editor) drawLines() error {
-	for y := uint(1); y < e.config.Height; y++ {
-		if y <= e.nLines { // inside the text buffer
-			writeMax := min(len(e.line), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
-			if _, err := e.w.WriteString(e.line[:writeMax]); err != nil {
+	nLines := uint(len(e.lines))
+	for y := uint(1); y <= e.config.Height; y++ {
+		line := y + e.lineOffset - 1
+		if y <= nLines { // inside the text buffer
+			writeMax := min(len(e.lines[line]), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
+			if _, err := e.w.WriteString(e.lines[line][:writeMax]); err != nil {
 				return fmt.Errorf("write line: %w", err)
 			}
 		} else { // after the text buffer
-			if e.nLines == 0 && y == (e.config.Height/3) { // display the welcome message
+			if len(e.lines) == 0 && y == (e.config.Height/3) { // display the welcome message
 				welcome := center(e.welcomeMessage(), e.config.Width)
 				// Truncate the welcome message if it is too long for the screen.
 				writeMax := min(len(welcome), int(e.config.Width))
@@ -237,7 +250,7 @@ func (e *Editor) drawLines() error {
 			return err
 		}
 		// Add a new line to all but the last line of the screen.
-		if y < e.config.Height-1 {
+		if y < e.config.Height {
 			if _, err := e.w.WriteString("\r\n"); err != nil {
 				return fmt.Errorf("write line: %w", err)
 			}
@@ -258,7 +271,7 @@ func (e *Editor) moveCursor(key keynum) {
 			e.cursorPosition.x--
 		}
 	case keyDown:
-		if e.cursorPosition.y < e.config.Height {
+		if e.cursorPosition.y < uint(len(e.lines)) {
 			e.cursorPosition.y++
 		}
 	case keyUp:
@@ -271,6 +284,22 @@ func (e *Editor) moveCursor(key keynum) {
 		}
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
+	}
+}
+
+func (e *Editor) scroll() {
+	// If the cursor is above the last-known offset, update the offset to the current cursor
+	// position.
+	zeroIdxCursorY := e.cursorPosition.y - 1
+	if zeroIdxCursorY < e.lineOffset {
+		e.lineOffset = zeroIdxCursorY
+		return
+	}
+	// If the cursor is below the height of the screen as measured from the current line offset,
+	// update the offset so that it shows a full screen of text where the cursor is in the final
+	// row.
+	if zeroIdxCursorY >= e.lineOffset+e.config.Height {
+		e.lineOffset = zeroIdxCursorY - e.config.Height + 1
 	}
 }
 
