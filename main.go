@@ -38,6 +38,7 @@ func run() (err error) {
 		Width:   uint(w),
 		Height:  uint(h),
 	}
-	ed := editor.New(os.Stdin, os.Stdout, config)
+	keyReader := editor.NewZeroAllocationKeyReader(os.Stdin)
+	ed := editor.New(keyReader, os.Stdout, config)
 	return ed.Run()
 }

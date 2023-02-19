@@ -51,7 +51,7 @@ type Config struct {
 type Editor struct {
 	config         Config
 	cursorPosition position
-	reader         *bufio.Reader
+	keyReader      KeyReader
 	writer         *bufio.Writer
 	// keyBuffer is a permanent slice of len readMaxBytes intended to minimize allocations when
 	// reading multi-byte sequences from reader. Its contents are overwritten on each read.
@@ -61,10 +61,10 @@ type Editor struct {
 }
 
 // New returns a new *Editor that reads from r and writes to w.
-func New(r io.Reader, w io.Writer, config Config) *Editor {
+func New(kr KeyReader, w io.Writer, config Config) *Editor {
 	return &Editor{
 		config:         config,
-		reader:         bufio.NewReaderSize(r, readMaxBytes),
+		keyReader:      kr,
 		writer:         bufio.NewWriter(w),
 		keyBuffer:      make([]byte, readMaxBytes),
 		cursorPosition: position{1, 1},
@@ -91,11 +91,13 @@ func (e *Editor) Run() (err error) {
 // incorporated into a loop condition. If an error occurs during the refresh, it is saved to
 // (*editor).readErr, and processKeypress returns false.
 func (e *Editor) processKeypress() bool {
-	key, err := e.readKey()
+	rawKey, err := e.keyReader.ReadKey()
 	if err != nil {
 		e.readErr = err
 		return false
 	}
+
+	key := transliterateKeypress(rawKey)
 	if key == 0 { // EOF, return without error
 		return false
 	}
@@ -108,32 +110,6 @@ func (e *Editor) processKeypress() bool {
 	}
 
 	return true
-}
-
-func (e *Editor) readKey() (rune, error) {
-	n, err := e.reader.Read(e.keyBuffer)
-	if err != nil {
-		return 0, err
-	}
-
-	if e.keyBuffer[0] == keyEsc {
-		if n == 3 && e.keyBuffer[1] == '[' {
-			switch e.keyBuffer[2] {
-			case 'A':
-				return keyUp, nil
-			case 'B':
-				return keyDown, nil
-			case 'C':
-				return keyRight, nil
-			case 'D':
-				return keyLeft, nil
-			}
-		}
-		return keyEsc, nil
-	}
-
-	key, _ := utf8.DecodeRune(e.keyBuffer[:n])
-	return key, nil
 }
 
 // refreshScreen is designed to be called in a tight loop. By returning a boolean, it is easily
@@ -247,6 +223,34 @@ func (e *Editor) moveCursor(cursorKey rune) {
 
 func (e *Editor) welcomeMessage() string {
 	return fmt.Sprintf("%s -- version %s", e.config.Name, e.config.Version)
+}
+
+// transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
+func transliterateKeypress(kp []byte) rune {
+	if len(kp) == 0 {
+		return 0
+	}
+
+	// Transliterate escape sequences.
+	if kp[0] == keyEsc {
+		// Arrow keys.
+		if len(kp) == 3 && kp[1] == '[' {
+			switch kp[2] {
+			case 'A':
+				return keyUp
+			case 'B':
+				return keyDown
+			case 'C':
+				return keyRight
+			case 'D':
+				return keyLeft
+			}
+		}
+		return keyEsc
+	}
+
+	r, _ := utf8.DecodeRune(kp)
+	return r
 }
 
 func center(s string, width uint) string {
