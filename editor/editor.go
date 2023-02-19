@@ -28,13 +28,15 @@ const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
 	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
 	// (indexed from 0).
-	ctrlMask = 0x1f
-	keyEsc   = '\x1b'
-	keyDown  = 'j'
-	keyLeft  = 'h'
-	keyRight = 'l'
-	keyUp    = 'k'
-	keyQuit  = 'q' & ctrlMask
+	ctrlMask    = 0x1f
+	keyEsc      = '\x1b'
+	keyDown     = 'j'
+	keyLeft     = 'h'
+	keyPageUp   = 65365
+	keyPageDown = 65366
+	keyRight    = 'l'
+	keyUp       = 'k'
+	keyQuit     = 'q' & ctrlMask
 )
 
 // position represents 1-indexed x- and y-coordinates on a terminal.
@@ -55,11 +57,8 @@ type Editor struct {
 	cursorPosition position
 	r              KeyReader
 	w              TerminalWriter
-	// keyBuffer is a permanent slice of len readMaxBytes intended to minimize allocations when
-	// reading multi-byte sequences from reader. Its contents are overwritten on each read.
-	keyBuffer []byte
-	readErr   error
-	writeErr  error
+	readErr        error
+	writeErr       error
 }
 
 // New returns a new *Editor that reads from kr and writes to tw.
@@ -106,6 +105,14 @@ func (e *Editor) processKeypress() bool {
 	switch key {
 	case keyQuit:
 		return false
+	case keyPageUp:
+		for i := e.config.Height; i > 0; i-- {
+			e.moveCursor(keyUp)
+		}
+	case keyPageDown:
+		for i := e.config.Height; i > 0; i-- {
+			e.moveCursor(keyDown)
+		}
 	case keyLeft, keyDown, keyUp, keyRight:
 		e.moveCursor(key)
 	}
@@ -219,9 +226,18 @@ func transliterateKeypress(kp []byte) rune {
 	}
 
 	// Transliterate escape sequences.
-	if kp[0] == keyEsc {
-		// Arrow keys.
-		if len(kp) == 3 && kp[1] == '[' {
+	if isEscapeSequence(kp) {
+		switch len(kp) {
+		case 4:
+			if kp[3] == '~' {
+				switch kp[2] {
+				case '5':
+					return keyPageUp
+				case '6':
+					return keyPageDown
+				}
+			}
+		case 3:
 			switch kp[2] {
 			case 'A':
 				return keyUp
@@ -233,11 +249,22 @@ func transliterateKeypress(kp []byte) rune {
 				return keyLeft
 			}
 		}
-		return keyEsc
 	}
 
 	r, _ := utf8.DecodeRune(kp)
 	return r
+}
+
+// isEscapeSequence returns true if the keypress represents an escape sequence. The escape key
+// itself is not counted as an escape sequence, and isEscapeSequence will return false in this case.
+func isEscapeSequence(keypress []byte) bool {
+	if len(keypress) <= 1 {
+		return false
+	}
+	if keypress[1] == '[' {
+		return true
+	}
+	return false
 }
 
 func center(s string, width uint) string {

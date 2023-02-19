@@ -8,6 +8,8 @@ const (
 	EscCursorShow          EscSeq = "\x1b[?25h"
 	EscCursorPosition      EscSeq = "\x1b[%d;%dH"
 	EscCursorTopLeft       EscSeq = "\x1b[H"
+	EscPageUp              EscSeq = "\x1b[5~"
+	EscPageDown            EscSeq = "\x1b[6~"
 	EscScreenClear         EscSeq = "\x1b[2J"
 	EscLineClearFromCursor EscSeq = "\x1b[K"
 )
