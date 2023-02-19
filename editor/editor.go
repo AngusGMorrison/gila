@@ -1,26 +1,28 @@
 package editor
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"unicode/utf8"
+
+	"github.com/angusgmorrison/gila/escseq"
 )
 
-// Read as many bytes as the length of the longest character or escape sequence we're prepared to
-// handle. E.g. The key F5 is represented by the 5-byte escape sequence \x1b[15~.
-const readMaxBytes = 5
+// KeyReader reads a single keystroke or chord from input and returns its raw bytes.
+type KeyReader interface {
+	ReadKey() ([]byte, error)
+}
 
-type escapeSequence string
+// TerminalWriter writes output to a terminal-like device.
+type TerminalWriter interface {
+	io.Writer
 
-const (
-	escCursorHide          escapeSequence = "\x1b[?25l"
-	escCursorShow          escapeSequence = "\x1b[?25h"
-	escCursorPosition      escapeSequence = "\x1b[%d;%dH"
-	escCursorTopLeft       escapeSequence = "\x1b[H"
-	escScreenClear         escapeSequence = "\x1b[2J"
-	escLineClearFromCursor escapeSequence = "\x1b[K"
-)
+	Flush() error
+	WriteByte(b byte) error
+	WriteRune(r rune) (int, error)
+	WriteString(s string) (int, error)
+	WriteEscapeSequence(e escseq.EscSeq, args ...any) (int, error)
+}
 
 const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
@@ -51,8 +53,8 @@ type Config struct {
 type Editor struct {
 	config         Config
 	cursorPosition position
-	keyReader      KeyReader
-	writer         *bufio.Writer
+	r              KeyReader
+	w              TerminalWriter
 	// keyBuffer is a permanent slice of len readMaxBytes intended to minimize allocations when
 	// reading multi-byte sequences from reader. Its contents are overwritten on each read.
 	keyBuffer []byte
@@ -60,13 +62,12 @@ type Editor struct {
 	writeErr  error
 }
 
-// New returns a new *Editor that reads from r and writes to w.
-func New(kr KeyReader, w io.Writer, config Config) *Editor {
+// New returns a new *Editor that reads from kr and writes to tw.
+func New(kr KeyReader, tw TerminalWriter, config Config) *Editor {
 	return &Editor{
 		config:         config,
-		keyReader:      kr,
-		writer:         bufio.NewWriter(w),
-		keyBuffer:      make([]byte, readMaxBytes),
+		r:              kr,
+		w:              tw,
 		cursorPosition: position{1, 1},
 	}
 }
@@ -91,7 +92,7 @@ func (e *Editor) Run() (err error) {
 // incorporated into a loop condition. If an error occurs during the refresh, it is saved to
 // (*editor).readErr, and processKeypress returns false.
 func (e *Editor) processKeypress() bool {
-	rawKey, err := e.keyReader.ReadKey()
+	rawKey, err := e.r.ReadKey()
 	if err != nil {
 		e.readErr = err
 		return false
@@ -116,11 +117,11 @@ func (e *Editor) processKeypress() bool {
 // incorporated into a loop condition. If an error occurs during the refresh, it is saved to
 // (*editor).writeErr, and refreshScreen returns false.
 func (e *Editor) refreshScreen() bool {
-	if err := e.writeEscapeSeq(escCursorHide); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorHide); err != nil {
 		e.writeErr = err
 		return false
 	}
-	if err := e.writeEscapeSeq(escCursorTopLeft); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorTopLeft); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -128,43 +129,29 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.writeEscapeSeq(escCursorPosition, e.cursorPosition.y, e.cursorPosition.x); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorPosition, e.cursorPosition.y, e.cursorPosition.x); err != nil {
 		e.writeErr = err
 		return false
 	}
-	if err := e.writeEscapeSeq(escCursorShow); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorShow); err != nil {
 		e.writeErr = err
 		return false
 	}
-	if err := e.flush(); err != nil {
+	if err := e.w.Flush(); err != nil {
 		e.writeErr = err
 		return false
 	}
 	return true
 }
 
-func (e *Editor) writeEscapeSeq(esc escapeSequence, args ...any) error {
-	if _, err := fmt.Fprintf(e.writer, string(esc), args...); err != nil {
-		return fmt.Errorf("write escape sequence %q: %w", esc, err)
-	}
-	return nil
-}
-
 func (e *Editor) clearScreen() error {
-	if err := e.writeEscapeSeq(escScreenClear); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscScreenClear); err != nil {
 		return err
 	}
-	if err := e.writeEscapeSeq(escCursorTopLeft); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorTopLeft); err != nil {
 		return err
 	}
-	return e.flush()
-}
-
-func (e *Editor) flush() error {
-	if err := e.writer.Flush(); err != nil {
-		return fmt.Errorf("flush output buffer: %w", err)
-	}
-	return nil
+	return e.w.Flush()
 }
 
 func (e *Editor) drawRows() error {
@@ -175,21 +162,21 @@ func (e *Editor) drawRows() error {
 			centered := center(welcome, e.config.Width)
 			// Truncate the welcome message if it is too long for the screen.
 			truncated := centered[:min(len(centered), int(e.config.Width))]
-			if _, err := e.writer.WriteString(truncated); err != nil {
+			if _, err := e.w.WriteString(truncated); err != nil {
 				return fmt.Errorf("write row: %w", err)
 			}
 		} else {
-			if err := e.writer.WriteByte('~'); err != nil {
+			if err := e.w.WriteByte('~'); err != nil {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}
 		// Clear the remains of the old line that have not been overwritten.
-		if err := e.writeEscapeSeq(escLineClearFromCursor); err != nil {
+		if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
 			return err
 		}
 		// Add a new line to all but the last line of the screen.
 		if y < e.config.Height-1 {
-			if _, err := e.writer.WriteString("\r\n"); err != nil {
+			if _, err := e.w.WriteString("\r\n"); err != nil {
 				return fmt.Errorf("write row: %w", err)
 			}
 		}

@@ -5,7 +5,9 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/angusgmorrison/gila/bufio"
 	"github.com/angusgmorrison/gila/editor"
+	"github.com/angusgmorrison/gila/escseq"
 	"golang.org/x/term"
 )
 
@@ -38,7 +40,8 @@ func run() (err error) {
 		Width:   uint(w),
 		Height:  uint(h),
 	}
-	keyReader := editor.NewZeroAllocationKeyReader(os.Stdin)
-	ed := editor.New(keyReader, os.Stdout, config)
+	keyReader := bufio.NewKeyReader(os.Stdin, escseq.MaxLenBytes)
+	terminalWriter := bufio.NewTerminalWriter(os.Stdout)
+	ed := editor.New(keyReader, terminalWriter, config)
 	return ed.Run()
 }
