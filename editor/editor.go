@@ -35,7 +35,7 @@ type Logger interface {
 	Printf(fmt string, a ...any)
 }
 
-// keynum is an enumerable that incoroprates all Unicode symbols and additionally defines
+// keynum is an enumerable that incorporates all Unicode symbols and additionally defines
 // representations for keys with special functions.
 type keynum rune
 
