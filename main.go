@@ -32,8 +32,9 @@ func run() (err error) {
 		return fmt.Errorf("enable terminal raw mode: %w", err)
 	}
 	defer func() { err = term.Restore(int(os.Stdin.Fd()), initialTermState) }()
-	// In raw mode, the cursor won't return to the start of the next line after the terminal echoes
-	// the command used to run the program, so we force the line feed.
+	// In raw mode, the cursor won't return to the start of the next line after
+	// the terminal echoes the command used to run the program, so we force the
+	// line feed.
 	fmt.Print("\r")
 
 	w, h, err := term.GetSize(int(os.Stdin.Fd()))

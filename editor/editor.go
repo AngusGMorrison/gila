@@ -1,3 +1,5 @@
+// Package editor implements the core loop of a text editor with pluggable input
+// and output sources.
 package editor
 
 import (

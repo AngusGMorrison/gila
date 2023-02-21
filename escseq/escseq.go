@@ -1,4 +1,5 @@
-// Package escseq provides escape sequence constants for working with ANSI terminals.
+// Package escseq provides escape sequence constants for working with ANSI
+// terminals.
 package escseq
 
 type EscSeq string
@@ -12,6 +13,7 @@ const (
 	EscLineClearFromCursor EscSeq = "\x1b[K"
 )
 
-// MaxLenBytes is the length in bytes of the longest escape sequence we intend to handle. 8 bytes is
-// longer than any kepress on a standard ~100-key QWERTY keyboard.
+// MaxLenBytes is the length in bytes of the longest escape sequence we intend
+// to handle. 8 bytes is longer than any kepress on a standard ~100-key QWERTY
+// keyboard.
 const MaxLenBytes = 8
