@@ -1,7 +1,7 @@
 package bufio
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 
@@ -9,21 +9,58 @@ import (
 	"github.com/angusgmorrison/gila/escseq"
 )
 
-// TerminalWriter satisfies editor.TerminalWriter.
+const defaultBufferBytes = 4096
+
+// TerminalWriter satisfies editor.TerminalWriter. To minimize blocking IO, it
+// writes to w only when flushed.
 type TerminalWriter struct {
-	*bufio.Writer
+	buf *bytes.Buffer
+	w   io.Writer
 }
 
 var _ editor.TerminalWriter = (*TerminalWriter)(nil)
 
 func NewTerminalWriter(w io.Writer) *TerminalWriter {
-	return &TerminalWriter{bufio.NewWriter(w)}
+	return &TerminalWriter{
+		buf: bytes.NewBuffer(make([]byte, 0, defaultBufferBytes)),
+		w:   w,
+	}
 }
 
-// WriteEscapeSequence formats the given EscSeq with args and writes it to the underlying writer,
-// returning the number of bytes written and any error.
+// Flush writes the contents of the TerminalWriter's buffer to its writer,
+// returning any error that occurs.
+func (tw *TerminalWriter) Flush() error {
+	_, err := tw.buf.WriteTo(tw.w)
+	return err
+}
+
+// Write appends p to the TerminalWriter's buffer, returning len(p) and a nil
+// error.
+func (tw *TerminalWriter) Write(p []byte) (int, error) {
+	return tw.buf.Write(p)
+}
+
+// Write appends c to the TerminalWriter's buffer, returning a nil error.
+func (tw *TerminalWriter) WriteByte(c byte) error {
+	return tw.buf.WriteByte(c)
+}
+
+// Write appends r to the TerminalWriter's buffer, returning r's size in bytes and a nil error.
+func (tw *TerminalWriter) WriteRune(r rune) (int, error) {
+	return tw.buf.WriteRune(r)
+}
+
+// Write appends s to the TerminalWriter's buffer, returning len(s) and a nil
+// error.
+func (tw *TerminalWriter) WriteString(s string) (int, error) {
+	return tw.buf.WriteString(s)
+}
+
+// WriteEscapeSequence formats the given EscSeq with args and writes it to the
+// TerminalWriter's buffer, returning the number of bytes written and a nil
+// error.
 func (tw *TerminalWriter) WriteEscapeSequence(esc escseq.EscSeq, args ...any) (int, error) {
-	n, err := fmt.Fprintf(tw, string(esc), args...)
+	n, err := fmt.Fprintf(tw.buf, string(esc), args...)
 	if err != nil {
 		return n, fmt.Errorf("write escape sequence %q: %w", esc, err)
 	}
