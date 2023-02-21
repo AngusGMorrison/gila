@@ -80,6 +80,7 @@ type Editor struct {
 	lines []string
 	// Tracks the row the user is scrolled to.
 	lineOffset uint
+	colOffset  uint
 	r          KeyReader
 	w          TerminalWriter
 	readErr    error
@@ -195,7 +196,7 @@ func (e *Editor) refreshScreen() bool {
 	if _, err := e.w.WriteEscapeSequence(
 		escseq.EscCursorPosition,
 		e.cursorPosition.y-e.lineOffset,
-		e.cursorPosition.x,
+		e.cursorPosition.x-e.colOffset,
 	); err != nil {
 		e.writeErr = err
 		return false
@@ -226,8 +227,10 @@ func (e *Editor) drawLines() error {
 	for y := uint(1); y <= e.config.Height; y++ {
 		line := y + e.lineOffset - 1
 		if y <= nLines { // inside the text buffer
-			writeMax := min(len(e.lines[line]), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
-			if _, err := e.w.WriteString(e.lines[line][:writeMax]); err != nil {
+			maxCol := min(int(e.colOffset), len(e.lines[line]))
+			scrolledLine := e.lines[line][maxCol:]
+			renderableLen := min(len(scrolledLine), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
+			if _, err := e.w.WriteString(scrolledLine[:renderableLen]); err != nil {
 				return fmt.Errorf("write line: %w", err)
 			}
 		} else { // after the text buffer
@@ -279,27 +282,37 @@ func (e *Editor) moveCursor(key keynum) {
 			e.cursorPosition.y--
 		}
 	case keyRight:
-		if e.cursorPosition.x < e.config.Width {
-			e.cursorPosition.x++
-		}
+		e.cursorPosition.x++
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 }
 
 func (e *Editor) scroll() {
-	// If the cursor is above the last-known offset, update the offset to the current cursor
-	// position.
 	zeroIdxCursorY := e.cursorPosition.y - 1
+	zeroIdxCursorX := e.cursorPosition.x - 1
+	// Scroll up: if the cursor is above the last-known offset, update the
+	// offset to the current cursor position.
 	if zeroIdxCursorY < e.lineOffset {
 		e.lineOffset = zeroIdxCursorY
-		return
 	}
-	// If the cursor is below the height of the screen as measured from the current line offset,
-	// update the offset so that it shows a full screen of text where the cursor is in the final
-	// row.
+	// Scroll down: if the cursor is below the height of the screen as measured
+	// from the current line offset, update the offset so that it shows a full
+	// screen of text where the cursor is in the final row.
 	if zeroIdxCursorY >= e.lineOffset+e.config.Height {
 		e.lineOffset = zeroIdxCursorY - e.config.Height + 1
+	}
+
+	// Scroll left: if the cursor is left of the left margin, update the offset
+	// to the the current cursor position.
+	if zeroIdxCursorX < e.colOffset {
+		e.colOffset = zeroIdxCursorX
+	}
+
+	// Scroll right: if the cursor is right of the right margin, update the offset so that it shows
+	// a full screen of text where the cursor is in the rightmost column.
+	if zeroIdxCursorX >= e.colOffset+e.config.Width {
+		e.colOffset = zeroIdxCursorX - e.config.Width + 1
 	}
 }
 
