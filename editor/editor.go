@@ -10,10 +10,12 @@ import (
 	"github.com/angusgmorrison/gila/escseq"
 )
 
-// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of text.
+// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
+// text.
 const nLinesToPreallocate = 1024
 
-// KeyReader reads a single keystroke or chord from input and returns its raw bytes.
+// KeyReader reads a single keystroke or chord from input and returns its raw
+// bytes.
 type KeyReader interface {
 	ReadKey() ([]byte, error)
 }
@@ -29,14 +31,15 @@ type TerminalWriter interface {
 	WriteEscapeSequence(e escseq.EscSeq, args ...any) (int, error)
 }
 
-// Logger represents the minimal set of methods used to log the editor's workings.
+// Logger represents the minimal set of methods used to log the editor's
+// workings.
 type Logger interface {
 	Println(a ...any)
 	Printf(fmt string, a ...any)
 }
 
-// keynum is an enumerable that incorporates all Unicode symbols and additionally defines
-// representations for keys with special functions.
+// keynum is an enumerable that incorporates all Unicode symbols and
+// additionally defines representations for keys with special functions.
 type keynum rune
 
 const (
@@ -53,9 +56,9 @@ const (
 
 // Chords.
 const (
-	// ctrlMask can be combined with any other ASCII character code, CHAR, to represent Ctrl-CHAR.
-	// This is because the terminal handles Ctrl combinations by zeroing bits 5 and 6 of CHAR
-	// (indexed from 0).
+	// ctrlMask can be combined with any other ASCII character code, CHAR, to
+	// represent Ctrl-CHAR. This is because the terminal handles Ctrl
+	// combinations by zeroing bits 5 and 6 of CHAR (indexed from 0).
 	ctrlMask  = 0x1f
 	chordQuit = 'q' & ctrlMask
 )
@@ -71,8 +74,8 @@ type Config struct {
 	Width, Height uint
 }
 
-// Editor holds the state for a text editor. Its methods run the main loop for reading and writing
-// input to and from a terminal.
+// Editor holds the state for a text editor. Its methods run the main loop for
+// reading and writing input to and from a terminal.
 type Editor struct {
 	config         Config
 	cursorPosition position
@@ -99,8 +102,8 @@ func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor 
 	}
 }
 
-// Run starts the editor loop. The editor will update the screen and process user input until
-// commanded to quit or an error occurs.
+// Run starts the editor loop. The editor will update the screen and process
+// user input until commanded to quit or an error occurs.
 func (e *Editor) Run(filepath string) (err error) {
 	defer e.clearScreen()
 
@@ -140,9 +143,10 @@ func (e *Editor) open(path string) (err error) {
 	return nil // EOF
 }
 
-// processKeypress is designed to be called in a tight loop. By returning a boolean, it is easily
-// incorporated into a loop condition. If an error occurs during the refresh, it is saved to
-// (*editor).readErr, and processKeypress returns false.
+// processKeypress is designed to be called in a tight loop. By returning a
+// boolean, it is easily incorporated into a loop condition. If an error occurs
+// during the refresh, it is saved to (*editor).readErr, and processKeypress
+// returns false.
 func (e *Editor) processKeypress() bool {
 	rawKey, err := e.r.ReadKey()
 	if err != nil {
@@ -175,9 +179,10 @@ func (e *Editor) processKeypress() bool {
 	return true
 }
 
-// refreshScreen is designed to be called in a tight loop. By returning a boolean, it is easily
-// incorporated into a loop condition. If an error occurs during the refresh, it is saved to
-// (*editor).writeErr, and refreshScreen returns false.
+// refreshScreen is designed to be called in a tight loop. By returning a
+// boolean, it is easily incorporated into a loop condition. If an error occurs
+// during the refresh, it is saved to (*editor).writeErr, and refreshScreen
+// returns false.
 func (e *Editor) refreshScreen() bool {
 	e.scroll()
 
@@ -309,8 +314,9 @@ func (e *Editor) scroll() {
 		e.colOffset = zeroIdxCursorX
 	}
 
-	// Scroll right: if the cursor is right of the right margin, update the offset so that it shows
-	// a full screen of text where the cursor is in the rightmost column.
+	// Scroll right: if the cursor is right of the right margin, update the
+	// offset so that it shows a full screen of text where the cursor is in the
+	// rightmost column.
 	if zeroIdxCursorX >= e.colOffset+e.config.Width {
 		e.colOffset = zeroIdxCursorX - e.config.Width + 1
 	}
@@ -325,8 +331,9 @@ func transliterateKeypress(kp []byte) keynum {
 	if len(kp) == 0 {
 		return 0
 	}
-	// Transliterate escape sequences. Due to differences between terminal emulators, there may be
-	// several ways to represent the same escape sequence.
+	// Transliterate escape sequences. Due to differences between terminal
+	// emulators, there may be several ways to represent the same escape
+	// sequence.
 	if isEscapeSequence(kp) {
 		if kp[1] == '[' {
 			switch len(kp) {
@@ -379,8 +386,9 @@ func transliterateKeypress(kp []byte) keynum {
 	return keynum(r)
 }
 
-// isEscapeSequence returns true if the keypress represents an escape sequence. The escape key
-// itself is not counted as an escape sequence, and isEscapeSequence will return false in this case.
+// isEscapeSequence returns true if the keypress represents an escape sequence.
+// The escape key itself is not counted as an escape sequence, and
+// isEscapeSequence will return false in this case.
 func isEscapeSequence(keypress []byte) bool {
 	if len(keypress) <= 1 {
 		return false
@@ -394,8 +402,8 @@ func isEscapeSequence(keypress []byte) bool {
 func center(s string, width uint) string {
 	leftPadding := (int(width) + len(s)) / 2
 	rightPadding := -int(width) // Go interprets negative values as padding from the right
-	// Bring the right margin all the way over to the left, then add half (screen width + string
-	// len) to push the text into the middle.
+	// Bring the right margin all the way over to the left, then add half
+	// (screen width + string len) to push the text into the middle.
 	return fmt.Sprintf("%*s", rightPadding, fmt.Sprintf("%*s", leftPadding, s))
 }
 
