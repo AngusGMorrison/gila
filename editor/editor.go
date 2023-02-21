@@ -70,6 +70,9 @@ type position struct {
 	x, y uint
 }
 
+// line represents a single line of text.
+type line []rune
+
 // Config contains editor configuration data.
 type Config struct {
 	Name, Version string
@@ -82,7 +85,7 @@ type Editor struct {
 	config         Config
 	cursorPosition position
 	// The text in the buffer.
-	lines []string
+	lines []line
 	// Tracks the row the user is scrolled to.
 	lineOffset uint
 	colOffset  uint
@@ -134,10 +137,13 @@ func (e *Editor) open(path string) (err error) {
 	}
 	defer func() { err = f.Close() }()
 
-	e.lines = make([]string, 0, nLinesToPreallocate)
+	e.lines = make([]line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		e.lines = append(e.lines, scanner.Text())
+		// TODO: []rune represents the cleanest way of handling UTF-8-encoded
+		// strings, but requires allocations to copy from string when reading
+		// input, and to string when writing output. Can this be avoided?
+		e.lines = append(e.lines, line(scanner.Text()))
 	}
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan line from %s: %w", path, err)
@@ -232,12 +238,13 @@ func (e *Editor) clearScreen() error {
 func (e *Editor) drawLines() error {
 	nLines := uint(len(e.lines))
 	for y := uint(1); y <= e.config.Height; y++ {
-		line := y + e.lineOffset - 1
+		lineIdx := y + e.lineOffset - 1
 		if y <= nLines { // inside the text buffer
-			maxCol := min(int(e.colOffset), len(e.lines[line]))
-			scrolledLine := e.lines[line][maxCol:]
-			renderableLen := min(len(scrolledLine), int(e.config.Width)) // TODO: may tuncate characters > 1 byte. To be fixed by word wrapping.
-			if _, err := e.w.WriteString(scrolledLine[:renderableLen]); err != nil {
+			currentLine := e.lines[lineIdx]
+			maxCol := min(int(e.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
+			scrolledLine := currentLine[maxCol:]
+			renderableLen := min(len(scrolledLine), int(e.config.Width))
+			if _, err := e.w.WriteString(string(scrolledLine[:renderableLen])); err != nil { // TODO: candidate for optimisation, avoiding string conversion
 				return fmt.Errorf("write line: %w", err)
 			}
 		} else { // after the text buffer
@@ -271,9 +278,6 @@ func (e *Editor) drawLines() error {
 }
 
 func (e *Editor) moveCursor(key keynum) {
-	line := e.currentLine()
-	runeCount := utf8.RuneCountInString(line)
-
 	switch key {
 	case keyHome:
 		e.cursorPosition.x = 1
@@ -293,15 +297,14 @@ func (e *Editor) moveCursor(key keynum) {
 		}
 	case keyRight:
 		// A line with 0 characters should place the cursor in column 1.
-		if e.cursorPosition.x <= uint(runeCount) {
+		if e.cursorPosition.x <= uint(len(e.currentLine())) {
 			e.cursorPosition.x++
 		}
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 
-	runeCount = utf8.RuneCountInString(e.currentLine())
-	maxCursorX := uint(runeCount) + 1
+	maxCursorX := uint(len(e.currentLine())) + 1
 	if e.cursorPosition.x > maxCursorX {
 		e.cursorPosition.x = maxCursorX
 	}
@@ -336,9 +339,9 @@ func (e *Editor) scroll() {
 	}
 }
 
-func (e *Editor) currentLine() string {
+func (e *Editor) currentLine() []rune {
 	if e.cursorPosition.y > uint(len(e.lines)) {
-		return ""
+		return nil
 	}
 	return e.lines[e.cursorPosition.y-1]
 }
