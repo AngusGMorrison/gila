@@ -271,6 +271,9 @@ func (e *Editor) drawLines() error {
 }
 
 func (e *Editor) moveCursor(key keynum) {
+	line := e.currentLine()
+	runeCount := utf8.RuneCountInString(line)
+
 	switch key {
 	case keyHome:
 		e.cursorPosition.x = 1
@@ -281,7 +284,7 @@ func (e *Editor) moveCursor(key keynum) {
 			e.cursorPosition.x--
 		}
 	case keyDown:
-		if e.cursorPosition.y < uint(len(e.lines)) {
+		if e.cursorPosition.y <= uint(len(e.lines)) {
 			e.cursorPosition.y++
 		}
 	case keyUp:
@@ -289,9 +292,18 @@ func (e *Editor) moveCursor(key keynum) {
 			e.cursorPosition.y--
 		}
 	case keyRight:
-		e.cursorPosition.x++
+		// A line with 0 characters should place the cursor in column 1.
+		if e.cursorPosition.x <= uint(runeCount) {
+			e.cursorPosition.x++
+		}
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
+	}
+
+	runeCount = utf8.RuneCountInString(e.currentLine())
+	maxCursorX := uint(runeCount) + 1
+	if e.cursorPosition.x > maxCursorX {
+		e.cursorPosition.x = maxCursorX
 	}
 }
 
@@ -322,6 +334,13 @@ func (e *Editor) scroll() {
 	if zeroIdxCursorX >= e.colOffset+e.config.Width {
 		e.colOffset = zeroIdxCursorX - e.config.Width + 1
 	}
+}
+
+func (e *Editor) currentLine() string {
+	if e.cursorPosition.y > uint(len(e.lines)) {
+		return ""
+	}
+	return e.lines[e.cursorPosition.y-1]
 }
 
 func (e *Editor) welcomeMessage() string {
