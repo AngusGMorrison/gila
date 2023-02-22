@@ -271,7 +271,7 @@ func (e *Editor) moveCursor(key keynum) {
 	case keyEnd:
 		e.cursor.end(uint(len(e.currentLine())))
 	case keyLeft:
-		e.cursor.left()
+		e.cursor.left(uint(len(e.prevLine())))
 	case keyDown:
 		e.cursor.down(e.len())
 	case keyUp:
@@ -290,6 +290,13 @@ func (e *Editor) currentLine() []rune {
 		return nil
 	}
 	return e.lines[e.cursor.line-1]
+}
+
+func (e *Editor) prevLine() []rune {
+	if e.cursor.line <= 1 {
+		return nil
+	}
+	return e.lines[e.cursor.line-2]
 }
 
 func (e *Editor) len() uint {

@@ -25,9 +25,14 @@ func (c *cursor) y() uint {
 	return c.line - c.lineOffset
 }
 
-func (c *cursor) left() {
+func (c *cursor) left(prevLineLen uint) {
 	if c.col > 1 {
 		c.col--
+		return
+	}
+	if c.line > 1 {
+		c.line--
+		c.end(prevLineLen)
 	}
 }
 
