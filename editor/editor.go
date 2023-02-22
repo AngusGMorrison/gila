@@ -277,7 +277,7 @@ func (e *Editor) moveCursor(key keynum) {
 	case keyUp:
 		e.cursor.up()
 	case keyRight:
-		e.cursor.right(uint(len(e.currentLine())))
+		e.cursor.right(uint(len(e.currentLine())), uint(len(e.nextLine())), e.len())
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
@@ -297,6 +297,13 @@ func (e *Editor) prevLine() []rune {
 		return nil
 	}
 	return e.lines[e.cursor.line-2]
+}
+
+func (e *Editor) nextLine() []rune {
+	if e.cursor.line >= e.len() {
+		return nil
+	}
+	return e.lines[e.cursor.line]
 }
 
 func (e *Editor) len() uint {

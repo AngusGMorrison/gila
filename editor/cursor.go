@@ -40,9 +40,14 @@ func (c *cursor) home() {
 	c.col = 1
 }
 
-func (c *cursor) right(lineLen uint) {
+func (c *cursor) right(lineLen, nextLineLen, nLines uint) {
 	if c.col <= lineLen {
 		c.col++
+		return
+	}
+	if c.line <= nLines {
+		c.line++
+		c.home()
 	}
 }
 
