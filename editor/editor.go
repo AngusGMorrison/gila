@@ -65,11 +65,6 @@ const (
 	chordQuit = 'q' & ctrlMask
 )
 
-// position represents 1-indexed x- and y-coordinates on a terminal.
-type position struct {
-	x, y uint
-}
-
 // line represents a single line of text.
 type line []rune
 
@@ -82,28 +77,25 @@ type Config struct {
 // Editor holds the state for a text editor. Its methods run the main loop for
 // reading and writing input to and from a terminal.
 type Editor struct {
-	config         Config
-	cursorPosition position
+	config Config
+	cursor *cursor
 	// The text in the buffer.
-	lines []line
-	// Tracks the row the user is scrolled to.
-	lineOffset uint
-	colOffset  uint
-	r          KeyReader
-	w          TerminalWriter
-	readErr    error
-	writeErr   error
-	logger     Logger // TODO: make logging debug-only
+	lines    []line
+	r        KeyReader
+	w        TerminalWriter
+	readErr  error
+	writeErr error
+	logger   Logger // TODO: make logging debug-only
 }
 
 // New returns a new *Editor that reads from kr and writes to tw.
 func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor {
 	return &Editor{
-		config:         config,
-		r:              kr,
-		w:              tw,
-		cursorPosition: position{1, 1},
-		logger:         logger,
+		config: config,
+		r:      kr,
+		w:      tw,
+		cursor: newCursor(),
+		logger: logger,
 	}
 }
 
@@ -192,8 +184,7 @@ func (e *Editor) processKeypress() bool {
 // during the refresh, it is saved to (*editor).writeErr, and refreshScreen
 // returns false.
 func (e *Editor) refreshScreen() bool {
-	e.scroll()
-
+	e.cursor.scroll(e.config.Width, e.config.Height)
 	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorHide); err != nil {
 		e.writeErr = err
 		return false
@@ -206,11 +197,7 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if _, err := e.w.WriteEscapeSequence(
-		escseq.EscCursorPosition,
-		e.cursorPosition.y-e.lineOffset,
-		e.cursorPosition.x-e.colOffset,
-	); err != nil {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorPosition, e.cursor.y(), e.cursor.x()); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -236,12 +223,12 @@ func (e *Editor) clearScreen() error {
 }
 
 func (e *Editor) drawLines() error {
-	nLines := uint(len(e.lines))
+	nLines := e.len()
 	for y := uint(1); y <= e.config.Height; y++ {
-		lineIdx := y + e.lineOffset - 1
+		lineIdx := y + e.cursor.lineOffset - 1
 		if y <= nLines { // inside the text buffer
 			currentLine := e.lines[lineIdx]
-			maxCol := min(int(e.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
+			maxCol := min(int(e.cursor.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
 			scrolledLine := currentLine[maxCol:]
 			renderableLen := min(len(scrolledLine), int(e.config.Width))
 			if _, err := e.w.WriteString(string(scrolledLine[:renderableLen])); err != nil { // TODO: candidate for optimisation, avoiding string conversion
@@ -280,70 +267,33 @@ func (e *Editor) drawLines() error {
 func (e *Editor) moveCursor(key keynum) {
 	switch key {
 	case keyHome:
-		e.cursorPosition.x = 1
+		e.cursor.home()
 	case keyEnd:
-		e.cursorPosition.x = e.config.Width
+		e.cursor.end(uint(len(e.currentLine())))
 	case keyLeft:
-		if e.cursorPosition.x > 1 {
-			e.cursorPosition.x--
-		}
+		e.cursor.left()
 	case keyDown:
-		if e.cursorPosition.y <= uint(len(e.lines)) {
-			e.cursorPosition.y++
-		}
+		e.cursor.down(e.len())
 	case keyUp:
-		if e.cursorPosition.y > 1 {
-			e.cursorPosition.y--
-		}
+		e.cursor.up()
 	case keyRight:
-		// A line with 0 characters should place the cursor in column 1.
-		if e.cursorPosition.x <= uint(len(e.currentLine())) {
-			e.cursorPosition.x++
-		}
+		e.cursor.right(uint(len(e.currentLine())))
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 
-	maxCursorX := uint(len(e.currentLine())) + 1
-	if e.cursorPosition.x > maxCursorX {
-		e.cursorPosition.x = maxCursorX
-	}
-}
-
-func (e *Editor) scroll() {
-	zeroIdxCursorY := e.cursorPosition.y - 1
-	zeroIdxCursorX := e.cursorPosition.x - 1
-	// Scroll up: if the cursor is above the last-known offset, update the
-	// offset to the current cursor position.
-	if zeroIdxCursorY < e.lineOffset {
-		e.lineOffset = zeroIdxCursorY
-	}
-	// Scroll down: if the cursor is below the height of the screen as measured
-	// from the current line offset, update the offset so that it shows a full
-	// screen of text where the cursor is in the final row.
-	if zeroIdxCursorY >= e.lineOffset+e.config.Height {
-		e.lineOffset = zeroIdxCursorY - e.config.Height + 1
-	}
-
-	// Scroll left: if the cursor is left of the left margin, update the offset
-	// to the the current cursor position.
-	if zeroIdxCursorX < e.colOffset {
-		e.colOffset = zeroIdxCursorX
-	}
-
-	// Scroll right: if the cursor is right of the right margin, update the
-	// offset so that it shows a full screen of text where the cursor is in the
-	// rightmost column.
-	if zeroIdxCursorX >= e.colOffset+e.config.Width {
-		e.colOffset = zeroIdxCursorX - e.config.Width + 1
-	}
+	e.cursor.snap(uint(len(e.currentLine())))
 }
 
 func (e *Editor) currentLine() []rune {
-	if e.cursorPosition.y > uint(len(e.lines)) {
+	if e.cursor.line > e.len() {
 		return nil
 	}
-	return e.lines[e.cursorPosition.y-1]
+	return e.lines[e.cursor.line-1]
+}
+
+func (e *Editor) len() uint {
+	return uint(len(e.lines))
 }
 
 func (e *Editor) welcomeMessage() string {
