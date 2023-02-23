@@ -7,14 +7,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"unicode/utf8"
 
 	"github.com/angusgmorrison/gila/escseq"
 )
 
-// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
-// text.
-const nLinesToPreallocate = 1024
+const (
+	defaultFilename = "[Untitled]"
+	// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
+	// text.
+	nLinesToPreallocate = 1024
+)
 
 // KeyReader reads a single keystroke or chord from input and returns its raw
 // bytes.
@@ -74,8 +78,9 @@ type Config struct {
 // Editor holds the state for a text editor. Its methods run the main loop for
 // reading and writing input to and from a terminal.
 type Editor struct {
-	config Config
-	cursor *cursor
+	config   Config
+	cursor   *cursor
+	filename string
 	// The text in the buffer.
 	lines    []*line
 	r        KeyReader
@@ -87,12 +92,14 @@ type Editor struct {
 
 // New returns a new *Editor that reads from kr and writes to tw.
 func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor {
+	config.Height-- // reserve the last line of the screen for the status bar
 	return &Editor{
-		config: config,
-		r:      kr,
-		w:      tw,
-		cursor: newCursor(),
-		logger: logger,
+		config:   config,
+		r:        kr,
+		w:        tw,
+		filename: defaultFilename,
+		cursor:   newCursor(),
+		logger:   logger,
 	}
 }
 
@@ -107,7 +114,7 @@ func (e *Editor) Run(filepath string) (err error) {
 		}
 	}
 
-	for e.refreshScreen() && e.processKeypress() {
+	for e.render() && e.processKeypress() {
 	}
 	if e.readErr != nil {
 		return e.readErr
@@ -126,6 +133,7 @@ func (e *Editor) open(path string) (err error) {
 	}
 	defer func() { err = f.Close() }()
 
+	e.filename = filepath.Base(path)
 	e.lines = make([]*line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -173,11 +181,11 @@ func (e *Editor) processKeypress() bool {
 	return true
 }
 
-// refreshScreen is designed to be called in a tight loop. By returning a
+// render is designed to be called in a tight loop. By returning a
 // boolean, it is easily incorporated into a loop condition. If an error occurs
-// during the refresh, it is saved to (*editor).writeErr, and refreshScreen
+// during the refresh, it is saved to (*editor).writeErr, and render
 // returns false.
-func (e *Editor) refreshScreen() bool {
+func (e *Editor) render() bool {
 	e.cursor.scroll(e.config.Width, e.config.Height)
 	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorHide); err != nil {
 		e.writeErr = err
@@ -187,7 +195,11 @@ func (e *Editor) refreshScreen() bool {
 		e.writeErr = err
 		return false
 	}
-	if err := e.drawLines(); err != nil {
+	if err := e.renderLines(); err != nil {
+		e.writeErr = err
+		return false
+	}
+	if err := e.renderStatusBar(); err != nil {
 		e.writeErr = err
 		return false
 	}
@@ -216,13 +228,12 @@ func (e *Editor) clearScreen() error {
 	return e.w.Flush()
 }
 
-func (e *Editor) drawLines() error {
+func (e *Editor) renderLines() error {
 	nLines := e.len()
 	for y := uint(1); y <= e.config.Height; y++ {
 		lineIdx := y + e.cursor.lineOffset - 1
 		if lineIdx < nLines { // inside the text buffer
 			currentLine := e.lines[lineIdx].render
-			e.logger.Println("rendering ", currentLine)
 			maxCol := min(int(e.cursor.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
 			scrolledLine := currentLine[maxCol:]
 			renderableLen := min(len(scrolledLine), int(e.config.Width))
@@ -248,14 +259,42 @@ func (e *Editor) drawLines() error {
 		if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
 			return err
 		}
-		// Add a new line to all but the last line of the screen.
-		if y < e.config.Height {
-			if _, err := e.w.WriteString("\r\n"); err != nil {
-				return fmt.Errorf("write line: %w", err)
-			}
+		if _, err := e.w.WriteString("\r\n"); err != nil {
+			return fmt.Errorf("write line: %w", err)
 		}
 	}
 
+	return nil
+}
+
+func (e *Editor) renderStatusBar() error {
+	if _, err := e.w.WriteEscapeSequence(escseq.EscGRendInvertColors); err != nil {
+		return err
+	}
+	lhs := fmt.Sprintf(" %.20s - %d lines", e.filename, e.len())
+	maxLHSLen := min(len(lhs), int(e.config.Width)-1) // leave room for at least one padding space on RHS
+	if _, err := e.w.WriteString(lhs[:maxLHSLen]); err != nil {
+		return err
+	}
+
+	rhs := fmt.Sprintf("%d/%d ", e.cursor.line, e.len())
+	for i := uint(maxLHSLen); i < e.config.Width; {
+		if e.config.Width-i == uint(len(rhs)) {
+			if _, err := e.w.WriteString(rhs); err != nil {
+				return err
+			}
+			break
+		} else {
+			if err := e.w.WriteByte(' '); err != nil {
+				return err
+			}
+			i++
+		}
+	}
+
+	if _, err := e.w.WriteEscapeSequence(escseq.EscGRendRestore); err != nil {
+		return err
+	}
 	return nil
 }
 

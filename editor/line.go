@@ -25,7 +25,6 @@ func (l *line) renderLen() uint {
 
 func newLine(s string, logger Logger) *line {
 	// Replace tabs with spaces to override terminal tab stop setting.
-	logger.Println("raw line: ", s)
 	tabs := strings.Count(s, "\t")
 	spaces := tabs * (tabStop - 1) // the additional spaces required to replace tabs
 	runes := utf8.RuneCountInString(s)

@@ -14,6 +14,8 @@ are provided under `testdata`.
 - [x] Load arbitrary text files
 - [x] Vertical scrolling
 - [x] Horizontal scrolling
+- [x] Status bar
+- [ ] Status message
 - [ ] Handle grapheme clusters of > 1 code point
 - [ ] Word wrap
 - [ ] Text editing
