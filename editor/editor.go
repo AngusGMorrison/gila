@@ -220,7 +220,7 @@ func (e *Editor) drawLines() error {
 	nLines := e.len()
 	for y := uint(1); y <= e.config.Height; y++ {
 		lineIdx := y + e.cursor.lineOffset - 1
-		if y <= nLines { // inside the text buffer
+		if lineIdx < nLines { // inside the text buffer
 			currentLine := e.lines[lineIdx].render
 			e.logger.Println("rendering ", currentLine)
 			maxCol := min(int(e.cursor.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
