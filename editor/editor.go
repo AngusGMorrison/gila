@@ -65,9 +65,6 @@ const (
 	chordQuit = 'q' & ctrlMask
 )
 
-// line represents a single line of text.
-type line []rune
-
 // Config contains editor configuration data.
 type Config struct {
 	Name, Version string
@@ -80,7 +77,7 @@ type Editor struct {
 	config Config
 	cursor *cursor
 	// The text in the buffer.
-	lines    []line
+	lines    []*line
 	r        KeyReader
 	w        TerminalWriter
 	readErr  error
@@ -129,13 +126,10 @@ func (e *Editor) open(path string) (err error) {
 	}
 	defer func() { err = f.Close() }()
 
-	e.lines = make([]line, 0, nLinesToPreallocate)
+	e.lines = make([]*line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		// TODO: []rune represents the cleanest way of handling UTF-8-encoded
-		// strings, but requires allocations to copy from string when reading
-		// input, and to string when writing output. Can this be avoided?
-		e.lines = append(e.lines, line(scanner.Text()))
+		e.lines = append(e.lines, newLine(scanner.Text(), e.logger))
 	}
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan line from %s: %w", path, err)
@@ -227,7 +221,8 @@ func (e *Editor) drawLines() error {
 	for y := uint(1); y <= e.config.Height; y++ {
 		lineIdx := y + e.cursor.lineOffset - 1
 		if y <= nLines { // inside the text buffer
-			currentLine := e.lines[lineIdx]
+			currentLine := e.lines[lineIdx].render
+			e.logger.Println("rendering ", currentLine)
 			maxCol := min(int(e.cursor.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
 			scrolledLine := currentLine[maxCol:]
 			renderableLen := min(len(scrolledLine), int(e.config.Width))
@@ -265,41 +260,42 @@ func (e *Editor) drawLines() error {
 }
 
 func (e *Editor) moveCursor(key keynum) {
+	curLineLen := e.currentLine().renderLen()
 	switch key {
 	case keyHome:
 		e.cursor.home()
 	case keyEnd:
-		e.cursor.end(uint(len(e.currentLine())))
+		e.cursor.end(curLineLen)
 	case keyLeft:
-		e.cursor.left(uint(len(e.prevLine())))
+		e.cursor.left(e.prevLine().renderLen())
 	case keyDown:
 		e.cursor.down(e.len())
 	case keyUp:
 		e.cursor.up()
 	case keyRight:
-		e.cursor.right(uint(len(e.currentLine())), uint(len(e.nextLine())), e.len())
+		e.cursor.right(curLineLen, e.nextLine().renderLen(), e.len())
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 
-	e.cursor.snap(uint(len(e.currentLine())))
+	e.cursor.snap(e.currentLine().renderLen())
 }
 
-func (e *Editor) currentLine() []rune {
+func (e *Editor) currentLine() *line {
 	if e.cursor.line > e.len() {
 		return nil
 	}
 	return e.lines[e.cursor.line-1]
 }
 
-func (e *Editor) prevLine() []rune {
+func (e *Editor) prevLine() *line {
 	if e.cursor.line <= 1 {
 		return nil
 	}
 	return e.lines[e.cursor.line-2]
 }
 
-func (e *Editor) nextLine() []rune {
+func (e *Editor) nextLine() *line {
 	if e.cursor.line >= e.len() {
 		return nil
 	}
