@@ -172,15 +172,7 @@ func (e *Editor) processKeypress() bool {
 	switch key {
 	case chordQuit:
 		return false
-	case keyPageUp:
-		for i := e.config.Height; i > 0; i-- {
-			e.moveCursor(keyUp)
-		}
-	case keyPageDown:
-		for i := e.config.Height; i > 0; i-- {
-			e.moveCursor(keyDown)
-		}
-	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight:
+	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
 		e.moveCursor(key)
 	}
 
@@ -214,6 +206,10 @@ func (e *Editor) frame() Frame {
 func (e *Editor) moveCursor(key keynum) {
 	curLineLen := e.currentLine().RenderLen()
 	switch key {
+	case keyPageUp:
+		e.cursor.pageUp(e.config.Height)
+	case keyPageDown:
+		e.cursor.pageDown(e.config.Height, e.len())
 	case keyHome:
 		e.cursor.home()
 	case keyEnd:

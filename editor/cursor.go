@@ -83,15 +83,40 @@ func (c *Cursor) snap(lineLen uint) {
 	}
 }
 
-func (c *Cursor) up() {
-	if c.line > 1 {
-		c.line--
+func (c *Cursor) up() bool {
+	if c.line <= 1 {
+		return false
+	}
+	c.line--
+	return true
+}
+
+func (c *Cursor) down(nLines uint) bool {
+	if c.line > nLines {
+		return false
+	}
+	c.line++
+	return true
+}
+
+func (c *Cursor) pageUp(height uint) {
+	c.line = c.lineOffset + 1
+	for i := height; i > 0; i-- {
+		if !c.up() {
+			return
+		}
 	}
 }
 
-func (c *Cursor) down(nLines uint) {
-	if c.line <= nLines {
-		c.line++
+func (c *Cursor) pageDown(height, nLines uint) {
+	nextLine := c.lineOffset + height
+	if nextLine > nLines {
+		c.line = nLines
+	}
+	for i := height; i > 0; i-- {
+		if !c.down(nLines) {
+			return
+		}
 	}
 }
 
