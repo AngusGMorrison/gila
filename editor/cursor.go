@@ -1,5 +1,10 @@
 package editor
 
+// defaultCursorMargin controls the number of characters between the left-hand
+// edge of the screen and the cursor when scrolling left, allowing the user to
+// view the characters immediately preceding the cursor.
+const defaultCursorMargin = 3
+
 // Cursor is a moveable cursor with column and line coordinates indexed from 1.
 // It uses offsets starting from 0 to represent the Cursor's position within a
 // document too wide or long to fit terminal window.
@@ -95,6 +100,7 @@ func (c *Cursor) end(lineLen uint) bool {
 func (c *Cursor) snap(lineLen uint) {
 	if c.col > lineLen+1 {
 		c.end(lineLen)
+
 	}
 }
 
@@ -149,9 +155,14 @@ func (c *Cursor) scroll(width, height uint) {
 		c.lineOffset = zeroIdxLine - height + 1
 	}
 	// Scroll left: if the cursor is left of the left margin, update the offset
-	// to the the current cursor position.
-	if zeroIdxCol < c.colOffset {
-		c.colOffset = zeroIdxCol
+	// to the the current cursor position plus a margin that allows the user to
+	// see a few characters preceding the cursor.
+	if zeroIdxCol < c.colOffset+3 {
+		var leftMargin uint
+		if zeroIdxCol >= defaultCursorMargin && c.colOffset >= defaultCursorMargin-1 {
+			leftMargin = zeroIdxCol - defaultCursorMargin
+		}
+		c.colOffset = leftMargin
 	}
 	// Scroll right: if the cursor is right of the right margin, update the
 	// offset so that it shows a full screen of text where the cursor is in the
