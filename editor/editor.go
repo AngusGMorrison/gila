@@ -8,16 +8,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 	"unicode/utf8"
 
 	"github.com/angusgmorrison/gila/escseq"
 )
 
 const (
-	defaultFilename = "[Untitled]"
+	defaultFilename  = "[Untitled]"
+	defaultStatusMsg = "Help: Ctrl-Q = quit"
 	// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
 	// text.
-	nLinesToPreallocate = 1024
+	nLinesToPreallocate  = 1024
+	statusMsgMaxDuration = 5 * time.Second
 )
 
 // KeyReader reads a single keystroke or chord from input and returns its raw
@@ -78,9 +81,11 @@ type Config struct {
 // Editor holds the state for a text editor. Its methods run the main loop for
 // reading and writing input to and from a terminal.
 type Editor struct {
-	config   Config
-	cursor   *cursor
-	filename string
+	config     Config
+	cursor     *cursor
+	filename   string
+	statusMsg  string
+	statusTime time.Time
 	// The text in the buffer.
 	lines    []*line
 	r        KeyReader
@@ -92,14 +97,16 @@ type Editor struct {
 
 // New returns a new *Editor that reads from kr and writes to tw.
 func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor {
-	config.Height-- // reserve the last line of the screen for the status bar
+	config.Height -= 2 // reserve the last two lines of the screen for the status bar and status message
 	return &Editor{
-		config:   config,
-		r:        kr,
-		w:        tw,
-		filename: defaultFilename,
-		cursor:   newCursor(),
-		logger:   logger,
+		config:     config,
+		r:          kr,
+		w:          tw,
+		filename:   defaultFilename,
+		statusMsg:  defaultStatusMsg,
+		statusTime: time.Now(),
+		cursor:     newCursor(),
+		logger:     logger,
 	}
 }
 
@@ -203,6 +210,10 @@ func (e *Editor) render() bool {
 		e.writeErr = err
 		return false
 	}
+	if err := e.renderMessageBar(); err != nil {
+		e.writeErr = err
+		return false
+	}
 	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorPosition, e.cursor.y(), e.cursor.x()); err != nil {
 		e.writeErr = err
 		return false
@@ -293,6 +304,23 @@ func (e *Editor) renderStatusBar() error {
 	}
 
 	if _, err := e.w.WriteEscapeSequence(escseq.EscGRendRestore); err != nil {
+		return err
+	}
+	if _, err := e.w.WriteString("\r\n"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *Editor) renderMessageBar() error {
+	maxMsgLen := min(len(e.statusMsg), int(e.config.Width))
+	if maxMsgLen > 0 && time.Since(e.statusTime) < statusMsgMaxDuration {
+		if _, err := e.w.WriteString(e.statusMsg[:maxMsgLen]); err != nil {
+			return err
+		}
+	}
+
+	if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
 		return err
 	}
 	return nil

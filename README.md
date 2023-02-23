@@ -15,7 +15,7 @@ are provided under `testdata`.
 - [x] Vertical scrolling
 - [x] Horizontal scrolling
 - [x] Status bar
-- [ ] Status message
+- [x] Status message
 - [ ] Handle grapheme clusters of > 1 code point
 - [ ] Word wrap
 - [ ] Text editing
