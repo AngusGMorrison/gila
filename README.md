@@ -22,3 +22,4 @@ are provided under `testdata`.
 - [ ] Mode-based editing (Vim style)
 - [ ] Allow configuration by the user
 - [ ] Test suite
+- [ ] Treat space-replaced tabs as a single character for cursor movement
