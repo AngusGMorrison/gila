@@ -1,8 +1,13 @@
 package editor
 
 // Cursor is a moveable cursor with column and line coordinates indexed from 1.
-// It uses offsets starting from 0 to represent the Cursor's position within
-// a document too wide or long to fit terminal window.
+// It uses offsets starting from 0 to represent the Cursor's position within a
+// document too wide or long to fit terminal window.
+//
+// Cursor's directional methods (e.g. left, right, home) return booleans
+// indicating whether the requested movement was possible given the bounds of
+// the editor. Requesting a movement that is not possible is not considered an
+// error.
 type Cursor struct {
 	col, line             uint
 	colOffset, lineOffset uint
@@ -45,34 +50,44 @@ func (c *Cursor) Y() uint {
 	return c.line - c.lineOffset
 }
 
-func (c *Cursor) left(prevLineLen uint) {
+func (c *Cursor) left(prevLineLen uint) bool {
 	if c.col > 1 {
 		c.col--
-		return
+		return true
 	}
 	if c.line > 1 {
 		c.line--
-		c.end(prevLineLen)
+		return c.end(prevLineLen)
 	}
+	return false
 }
 
-func (c *Cursor) home() {
+func (c *Cursor) home() bool {
+	if c.col == 1 {
+		return false
+	}
 	c.col = 1
+	return true
 }
 
-func (c *Cursor) right(lineLen, nextLineLen, nLines uint) {
+func (c *Cursor) right(lineLen, nextLineLen, nLines uint) bool {
 	if c.col <= lineLen {
 		c.col++
-		return
+		return true
 	}
 	if c.line <= nLines {
 		c.line++
-		c.home()
+		return c.home()
 	}
+	return false
 }
 
-func (c *Cursor) end(lineLen uint) {
+func (c *Cursor) end(lineLen uint) bool {
+	if c.col == lineLen+1 {
+		return false
+	}
 	c.col = lineLen + 1
+	return true
 }
 
 // snap causes the cursor to snap to the end of the line if its current position
