@@ -5,13 +5,10 @@ package editor
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
 	"unicode/utf8"
-
-	"github.com/angusgmorrison/gila/escseq"
 )
 
 const (
@@ -29,15 +26,19 @@ type KeyReader interface {
 	ReadKey() ([]byte, error)
 }
 
-// TerminalWriter writes output to a terminal-like device.
-type TerminalWriter interface {
-	io.Writer
+// Frame contains all the data required to render a complete frame.
+type Frame struct {
+	Cursor         *Cursor
+	Lines          []*Line
+	Filename       string
+	StatusMsg      string
+	LastStatusTime time.Time
+}
 
-	Flush() error
-	WriteByte(b byte) error
-	WriteRune(r rune) (int, error)
-	WriteString(s string) (int, error)
-	WriteEscapeSequence(e escseq.EscSeq, args ...any) (int, error)
+// Renderer renders a frame to some arbitrary output.
+type Renderer interface {
+	Render(frame Frame) error
+	Clear() error
 }
 
 // Logger represents the minimal set of methods used to log the editor's
@@ -74,46 +75,45 @@ const (
 
 // Config contains editor configuration data.
 type Config struct {
-	Name, Version string
 	Width, Height uint
 }
 
 // Editor holds the state for a text editor. Its methods run the main loop for
 // reading and writing input to and from a terminal.
 type Editor struct {
-	config     Config
-	cursor     *cursor
-	filename   string
-	statusMsg  string
-	statusTime time.Time
+	config         Config
+	cursor         *Cursor
+	filename       string
+	statusMsg      string
+	lastStatusTime time.Time
 	// The text in the buffer.
-	lines    []*line
+	lines    []*Line
 	r        KeyReader
-	w        TerminalWriter
+	renderer Renderer
 	readErr  error
 	writeErr error
 	logger   Logger // TODO: make logging debug-only
 }
 
 // New returns a new *Editor that reads from kr and writes to tw.
-func New(kr KeyReader, tw TerminalWriter, config Config, logger Logger) *Editor {
+func New(kr KeyReader, r Renderer, config Config, logger Logger) *Editor {
 	config.Height -= 2 // reserve the last two lines of the screen for the status bar and status message
 	return &Editor{
-		config:     config,
-		r:          kr,
-		w:          tw,
-		filename:   defaultFilename,
-		statusMsg:  defaultStatusMsg,
-		statusTime: time.Now(),
-		cursor:     newCursor(),
-		logger:     logger,
+		config:         config,
+		r:              kr,
+		renderer:       r,
+		filename:       defaultFilename,
+		statusMsg:      defaultStatusMsg,
+		lastStatusTime: time.Now(),
+		cursor:         newCursor(),
+		logger:         logger,
 	}
 }
 
 // Run starts the editor loop. The editor will update the screen and process
 // user input until commanded to quit or an error occurs.
 func (e *Editor) Run(filepath string) (err error) {
-	defer e.clearScreen()
+	defer e.renderer.Clear() // TODO: Use a multierror to capture all possible errors.
 
 	if filepath != "" {
 		if err = e.open(filepath); err != nil {
@@ -141,10 +141,10 @@ func (e *Editor) open(path string) (err error) {
 	defer func() { err = f.Close() }()
 
 	e.filename = filepath.Base(path)
-	e.lines = make([]*line, 0, nLinesToPreallocate)
+	e.lines = make([]*Line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		e.lines = append(e.lines, newLine(scanner.Text(), e.logger))
+		e.lines = append(e.lines, newLine(scanner.Text()))
 	}
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan line from %s: %w", path, err)
@@ -190,179 +190,65 @@ func (e *Editor) processKeypress() bool {
 
 // render is designed to be called in a tight loop. By returning a
 // boolean, it is easily incorporated into a loop condition. If an error occurs
-// during the refresh, it is saved to (*editor).writeErr, and render
+// during the render, it is saved to (*editor).writeErr, and render
 // returns false.
 func (e *Editor) render() bool {
 	e.cursor.scroll(e.config.Width, e.config.Height)
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorHide); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorTopLeft); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if err := e.renderLines(); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if err := e.renderStatusBar(); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if err := e.renderMessageBar(); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorPosition, e.cursor.y(), e.cursor.x()); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorShow); err != nil {
-		e.writeErr = err
-		return false
-	}
-	if err := e.w.Flush(); err != nil {
+	if err := e.renderer.Render(e.frame()); err != nil {
 		e.writeErr = err
 		return false
 	}
 	return true
 }
 
-func (e *Editor) clearScreen() error {
-	if _, err := e.w.WriteEscapeSequence(escseq.EscScreenClear); err != nil {
-		return err
+// frame returns the current frame.
+func (e *Editor) frame() Frame {
+	return Frame{
+		Cursor:         e.cursor,
+		Lines:          e.lines,
+		Filename:       e.filename,
+		StatusMsg:      e.statusMsg,
+		LastStatusTime: e.lastStatusTime,
 	}
-	if _, err := e.w.WriteEscapeSequence(escseq.EscCursorTopLeft); err != nil {
-		return err
-	}
-	return e.w.Flush()
-}
-
-func (e *Editor) renderLines() error {
-	nLines := e.len()
-	for y := uint(1); y <= e.config.Height; y++ {
-		lineIdx := y + e.cursor.lineOffset - 1
-		if lineIdx < nLines { // inside the text buffer
-			currentLine := e.lines[lineIdx].render
-			maxCol := min(int(e.cursor.colOffset), len(currentLine)) // TODO: Handle grapheme clusters
-			scrolledLine := currentLine[maxCol:]
-			renderableLen := min(len(scrolledLine), int(e.config.Width))
-			if _, err := e.w.WriteString(string(scrolledLine[:renderableLen])); err != nil { // TODO: candidate for optimisation, avoiding string conversion
-				return fmt.Errorf("write line: %w", err)
-			}
-		} else { // after the text buffer
-			if len(e.lines) == 0 && y == (e.config.Height/3) { // display the welcome message
-				welcome := center(e.welcomeMessage(), e.config.Width)
-				// Truncate the welcome message if it is too long for the screen.
-				writeMax := min(len(welcome), int(e.config.Width))
-				if _, err := e.w.WriteString(welcome[:writeMax]); err != nil {
-					return fmt.Errorf("write line: %w", err)
-				}
-			} else {
-				if err := e.w.WriteByte('~'); err != nil {
-					return fmt.Errorf("write line: %w", err)
-				}
-			}
-		}
-
-		// Clear the remains of the old line that have not been overwritten.
-		if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
-			return err
-		}
-		if _, err := e.w.WriteString("\r\n"); err != nil {
-			return fmt.Errorf("write line: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (e *Editor) renderStatusBar() error {
-	if _, err := e.w.WriteEscapeSequence(escseq.EscGRendInvertColors); err != nil {
-		return err
-	}
-	lhs := fmt.Sprintf(" %.20s - %d lines", e.filename, e.len())
-	maxLHSLen := min(len(lhs), int(e.config.Width)-1) // leave room for at least one padding space on RHS
-	if _, err := e.w.WriteString(lhs[:maxLHSLen]); err != nil {
-		return err
-	}
-
-	rhs := fmt.Sprintf("%d/%d ", e.cursor.line, e.len())
-	for i := uint(maxLHSLen); i < e.config.Width; {
-		if e.config.Width-i == uint(len(rhs)) {
-			if _, err := e.w.WriteString(rhs); err != nil {
-				return err
-			}
-			break
-		} else {
-			if err := e.w.WriteByte(' '); err != nil {
-				return err
-			}
-			i++
-		}
-	}
-
-	if _, err := e.w.WriteEscapeSequence(escseq.EscGRendRestore); err != nil {
-		return err
-	}
-	if _, err := e.w.WriteString("\r\n"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *Editor) renderMessageBar() error {
-	maxMsgLen := min(len(e.statusMsg), int(e.config.Width))
-	if maxMsgLen > 0 && time.Since(e.statusTime) < statusMsgMaxDuration {
-		if _, err := e.w.WriteString(e.statusMsg[:maxMsgLen]); err != nil {
-			return err
-		}
-	}
-
-	if _, err := e.w.WriteEscapeSequence(escseq.EscLineClearFromCursor); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (e *Editor) moveCursor(key keynum) {
-	curLineLen := e.currentLine().renderLen()
+	curLineLen := e.currentLine().RenderLen()
 	switch key {
 	case keyHome:
 		e.cursor.home()
 	case keyEnd:
 		e.cursor.end(curLineLen)
 	case keyLeft:
-		e.cursor.left(e.prevLine().renderLen())
+		e.cursor.left(e.prevLine().RenderLen())
 	case keyDown:
 		e.cursor.down(e.len())
 	case keyUp:
 		e.cursor.up()
 	case keyRight:
-		e.cursor.right(curLineLen, e.nextLine().renderLen(), e.len())
+		e.cursor.right(curLineLen, e.nextLine().RenderLen(), e.len())
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 
-	e.cursor.snap(e.currentLine().renderLen())
+	e.cursor.snap(e.currentLine().RenderLen())
 }
 
-func (e *Editor) currentLine() *line {
+func (e *Editor) currentLine() *Line {
 	if e.cursor.line > e.len() {
 		return nil
 	}
 	return e.lines[e.cursor.line-1]
 }
 
-func (e *Editor) prevLine() *line {
+func (e *Editor) prevLine() *Line {
 	if e.cursor.line <= 1 {
 		return nil
 	}
 	return e.lines[e.cursor.line-2]
 }
 
-func (e *Editor) nextLine() *line {
+func (e *Editor) nextLine() *Line {
 	if e.cursor.line >= e.len() {
 		return nil
 	}
@@ -371,10 +257,6 @@ func (e *Editor) nextLine() *line {
 
 func (e *Editor) len() uint {
 	return uint(len(e.lines))
-}
-
-func (e *Editor) welcomeMessage() string {
-	return fmt.Sprintf("%s -- version %s", e.config.Name, e.config.Version)
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
@@ -448,19 +330,4 @@ func isEscapeSequence(keypress []byte) bool {
 		return true
 	}
 	return false
-}
-
-func center(s string, width uint) string {
-	leftPadding := (int(width) + len(s)) / 2
-	rightPadding := -int(width) // Go interprets negative values as padding from the right
-	// Bring the right margin all the way over to the left, then add half
-	// (screen width + string len) to push the text into the middle.
-	return fmt.Sprintf("%*s", rightPadding, fmt.Sprintf("%*s", leftPadding, s))
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

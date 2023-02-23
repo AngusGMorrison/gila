@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/angusgmorrison/gila/editor"
 	"github.com/angusgmorrison/gila/escseq"
+	"github.com/angusgmorrison/gila/renderer"
 )
 
 const defaultBufferBytes = 4096
 
-// TerminalWriter satisfies editor.TerminalWriter. To minimize blocking IO, it
+// TerminalWriter satisfies renderer.TerminalWriter. To minimize blocking IO, it
 // writes to w only when flushed.
 type TerminalWriter struct {
 	buf *bytes.Buffer
 	w   io.Writer
 }
 
-var _ editor.TerminalWriter = (*TerminalWriter)(nil)
+var _ renderer.TerminalWriter = (*TerminalWriter)(nil)
 
 func NewTerminalWriter(w io.Writer) *TerminalWriter {
 	return &TerminalWriter{

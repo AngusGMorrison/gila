@@ -9,10 +9,14 @@ import (
 	"github.com/angusgmorrison/gila/bufio"
 	"github.com/angusgmorrison/gila/editor"
 	"github.com/angusgmorrison/gila/escseq"
+	"github.com/angusgmorrison/gila/renderer"
 	"golang.org/x/term"
 )
 
-const logFile = "editor.log"
+const (
+	logFile = "editor.log"
+	name    = "Gila editor"
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -37,20 +41,22 @@ func run() (err error) {
 	// line feed.
 	fmt.Print("\r")
 
+	keyReader := bufio.NewKeyReader(os.Stdin, escseq.MaxLenBytes)
+	terminalWriter := bufio.NewTerminalWriter(os.Stdout)
+	info, _ := debug.ReadBuildInfo()
 	w, h, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return fmt.Errorf("get terminal size: %w", err)
 	}
-
-	info, _ := debug.ReadBuildInfo()
-	config := editor.Config{
-		Name:    "Gila editor",
-		Version: info.Main.Version,
-		Width:   uint(w),
-		Height:  uint(h),
-	}
-	keyReader := bufio.NewKeyReader(os.Stdin, escseq.MaxLenBytes)
-	terminalWriter := bufio.NewTerminalWriter(os.Stdout)
+	renderer := renderer.New(
+		name,
+		info.Main.Version,
+		terminalWriter,
+		renderer.Screen{
+			Width:  uint(w),
+			Height: uint(h),
+		},
+	)
 
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -59,6 +65,14 @@ func run() (err error) {
 	defer f.Close()
 	logger := log.New(f, "", log.LstdFlags|log.Lshortfile)
 
-	ed := editor.New(keyReader, terminalWriter, config, logger)
+	ed := editor.New(
+		keyReader,
+		renderer,
+		editor.Config{
+			Width:  uint(w),
+			Height: uint(h),
+		},
+		logger,
+	)
 	return ed.Run(filepath)
 }

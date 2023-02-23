@@ -7,23 +7,29 @@ import (
 
 const tabStop = 4
 
-// line represents a single line of text.
+// Line represents a single line of text.
 // TODO: []rune represents the cleanest way of handling UTF-8-encoded
 // strings, but requires allocations to copy from string when reading
 // input, and to string when writing output. Can this be avoided?
-type line struct {
+type Line struct {
 	raw    string
 	render []rune
 }
 
-func (l *line) renderLen() uint {
+// RenderLen returns the length of the line as it appears to the user.
+func (l *Line) RenderLen() uint {
 	if l == nil {
 		return 0
 	}
 	return uint(len(l.render))
 }
 
-func newLine(s string, logger Logger) *line {
+// String returns the rendered view of the line.
+func (l *Line) String() string {
+	return string(l.render)
+}
+
+func newLine(s string) *Line {
 	// Replace tabs with spaces to override terminal tab stop setting.
 	tabs := strings.Count(s, "\t")
 	spaces := tabs * (tabStop - 1) // the additional spaces required to replace tabs
@@ -40,7 +46,7 @@ func newLine(s string, logger Logger) *line {
 		}
 	}
 
-	return &line{
+	return &Line{
 		raw:    s,
 		render: render,
 	}

@@ -1,31 +1,51 @@
 package editor
 
-// cursor is a moveable cursor with column and line coordinates indexed from 1.
-// It uses offsets starting from 0 to represent the cursor's position within
+// Cursor is a moveable cursor with column and line coordinates indexed from 1.
+// It uses offsets starting from 0 to represent the Cursor's position within
 // a document too wide or long to fit terminal window.
-type cursor struct {
+type Cursor struct {
 	col, line             uint
 	colOffset, lineOffset uint
 }
 
-func newCursor() *cursor {
-	return &cursor{
+func newCursor() *Cursor {
+	return &Cursor{
 		col:  1,
 		line: 1,
 	}
 }
 
-// x returns the 1-indexed x-coordinate of the cursor relative to the screen.
-func (c *cursor) x() uint {
+// Col returns the 1-indexed column component of the cursor's position.
+func (c *Cursor) Col() uint {
+	return c.col
+}
+
+// Line returns the 1-indexed line component of the cursor's position.
+func (c *Cursor) Line() uint {
+	return c.line
+}
+
+// ColOffset returns the cursor's column offset.
+func (c *Cursor) ColOffset() uint {
+	return c.colOffset
+}
+
+// LineOffset returns the the cursor's line offset.
+func (c *Cursor) LineOffset() uint {
+	return c.lineOffset
+}
+
+// X returns the 1-indexed X-coordinate of the cursor relative to the screen.
+func (c *Cursor) X() uint {
 	return c.col - c.colOffset
 }
 
-// x returns the 1-indexed y-coordinate of the cursor relative to the screen.
-func (c *cursor) y() uint {
+// x returns the 1-indexed Y-coordinate of the cursor relative to the screen.
+func (c *Cursor) Y() uint {
 	return c.line - c.lineOffset
 }
 
-func (c *cursor) left(prevLineLen uint) {
+func (c *Cursor) left(prevLineLen uint) {
 	if c.col > 1 {
 		c.col--
 		return
@@ -36,11 +56,11 @@ func (c *cursor) left(prevLineLen uint) {
 	}
 }
 
-func (c *cursor) home() {
+func (c *Cursor) home() {
 	c.col = 1
 }
 
-func (c *cursor) right(lineLen, nextLineLen, nLines uint) {
+func (c *Cursor) right(lineLen, nextLineLen, nLines uint) {
 	if c.col <= lineLen {
 		c.col++
 		return
@@ -51,31 +71,31 @@ func (c *cursor) right(lineLen, nextLineLen, nLines uint) {
 	}
 }
 
-func (c *cursor) end(lineLen uint) {
+func (c *Cursor) end(lineLen uint) {
 	c.col = lineLen + 1
 }
 
 // snap causes the cursor to snap to the end of the line if its current position
 // would cause it to be rendered beyond the end of the line.
-func (c *cursor) snap(lineLen uint) {
+func (c *Cursor) snap(lineLen uint) {
 	if c.col > lineLen+1 {
 		c.end(lineLen)
 	}
 }
 
-func (c *cursor) up() {
+func (c *Cursor) up() {
 	if c.line > 1 {
 		c.line--
 	}
 }
 
-func (c *cursor) down(nLines uint) {
+func (c *Cursor) down(nLines uint) {
 	if c.line <= nLines {
 		c.line++
 	}
 }
 
-func (c *cursor) scroll(width, height uint) {
+func (c *Cursor) scroll(width, height uint) {
 	zeroIdxLine, zeroIdxCol := c.line-1, c.col-1
 	// Scroll up: if the cursor is above the last-known offset, update the
 	// offset to the current cursor position.
