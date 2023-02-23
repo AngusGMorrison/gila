@@ -13,11 +13,12 @@ are provided under `testdata`.
 - [x] Cursor control
 - [x] Load arbitrary text files
 - [x] Vertical scrolling
-- [ ] Horizontal scrolling
+- [x] Horizontal scrolling
 - [ ] Handle grapheme clusters of > 1 code point
 - [ ] Word wrap
 - [ ] Text editing
 - [ ] Search
 - [ ] Syntax highlighting
 - [ ] Mode-based editing (Vim style)
+- [ ] Allow configuration by the user
 - [ ] Test suite
