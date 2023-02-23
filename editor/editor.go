@@ -16,8 +16,7 @@ const (
 	defaultStatusMsg = "Help: Ctrl-Q = quit"
 	// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
 	// text.
-	nLinesToPreallocate  = 1024
-	statusMsgMaxDuration = 5 * time.Second
+	nLinesToPreallocate = 1024
 )
 
 // KeyReader reads a single keystroke or chord from input and returns its raw

@@ -1,10 +1,10 @@
 .PHONY: run build lorem
 
-run: main.go
-	go run .
+run: ./cmd/main.go
+	go run ./cmd/...
 
-build: main.go
-	go build -o gila .
+build: ./cmd/main.go
+	go build -o gila ./cmd/...
 
 lorem: build
 	./gila testdata/lorem_ipsum.txt
