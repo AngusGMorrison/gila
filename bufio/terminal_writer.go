@@ -1,7 +1,7 @@
 package bufio
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"io"
 
@@ -11,56 +11,56 @@ import (
 
 const defaultBufferBytes = 4096
 
-// TerminalWriter satisfies renderer.TerminalWriter. To minimize blocking IO, it
-// writes to w only when flushed.
+// TerminalWriter satisfies renderer.TerminalWriter.
 type TerminalWriter struct {
-	buf *bytes.Buffer
-	w   io.Writer
+	w *bufio.Writer
 }
 
 var _ renderer.TerminalWriter = (*TerminalWriter)(nil)
 
 func NewTerminalWriter(w io.Writer) *TerminalWriter {
 	return &TerminalWriter{
-		buf: bytes.NewBuffer(make([]byte, 0, defaultBufferBytes)),
-		w:   w,
+		w: bufio.NewWriterSize(w, defaultBufferBytes),
 	}
 }
 
 // Flush writes the contents of the TerminalWriter's buffer to its writer,
 // returning any error that occurs.
 func (tw *TerminalWriter) Flush() error {
-	_, err := tw.buf.WriteTo(tw.w)
-	return err
+	return tw.w.Flush()
 }
 
-// Write appends p to the TerminalWriter's buffer, returning len(p) and a nil
-// error.
+// Write appends p to the TerminalWriter's buffer. If p is longer than the
+// buffer, the buffer will be written and flushed to output as many times as
+// required to fully consume p.
 func (tw *TerminalWriter) Write(p []byte) (int, error) {
-	return tw.buf.Write(p)
+	return tw.w.Write(p)
 }
 
-// Write appends c to the TerminalWriter's buffer, returning a nil error.
+// Write appends c to the TerminalWriter's buffer.
 func (tw *TerminalWriter) WriteByte(c byte) error {
-	return tw.buf.WriteByte(c)
+	return tw.w.WriteByte(c)
 }
 
-// Write appends r to the TerminalWriter's buffer, returning r's size in bytes and a nil error.
+// Write appends r to the TerminalWriter's buffer. Triggers a flush if the rune
+// is longer than the remaining bytes in the buffer.
 func (tw *TerminalWriter) WriteRune(r rune) (int, error) {
-	return tw.buf.WriteRune(r)
+	return tw.w.WriteRune(r)
 }
 
 // Write appends s to the TerminalWriter's buffer, returning len(s) and a nil
-// error.
+// error. If s is longer than the buffer, the buffer will be written and flushed
+// to output as many times as required to fully consume s.
 func (tw *TerminalWriter) WriteString(s string) (int, error) {
-	return tw.buf.WriteString(s)
+	return tw.w.WriteString(s)
 }
 
 // WriteEscapeSequence formats the given EscSeq with args and writes it to the
-// TerminalWriter's buffer, returning the number of bytes written and a nil
-// error.
+// TerminalWriter's buffer. If the formatted escape sequence is longer than the
+// buffer, the buffer will be written and flushed to output as many times as
+// required to fully consume the escape sequence.
 func (tw *TerminalWriter) WriteEscapeSequence(esc escseq.EscSeq, args ...any) (int, error) {
-	n, err := fmt.Fprintf(tw.buf, string(esc), args...)
+	n, err := fmt.Fprintf(tw.w, string(esc), args...)
 	if err != nil {
 		return n, fmt.Errorf("write escape sequence %q: %w", esc, err)
 	}

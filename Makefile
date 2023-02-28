@@ -1,4 +1,4 @@
-.PHONY: run build lorem
+.PHONY: run build lorem short war
 
 run: ./cmd/main.go
 	go run ./cmd/...
@@ -11,3 +11,6 @@ lorem: build
 
 short: build
 	./gila testdata/short_lines.txt
+
+war: build
+	./gila testdata/war_and_peace.txt
