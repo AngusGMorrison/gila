@@ -12,21 +12,25 @@ const tabStop = 4
 // strings, but requires allocations to copy from string when reading
 // input, and to string when writing output. Can this be avoided?
 type Line struct {
-	raw    string
-	render []rune
+	raw   string
+	runes []rune
 }
 
-// RenderLen returns the length of the line as it appears to the user.
-func (l *Line) RenderLen() uint {
+// RuneLen returns the length of the line as it appears to the user.
+func (l *Line) RuneLen() uint {
 	if l == nil {
 		return 0
 	}
-	return uint(len(l.render))
+	return uint(len(l.runes))
 }
 
 // String returns the rendered view of the line.
 func (l *Line) String() string {
-	return string(l.render)
+	return string(l.runes)
+}
+
+func (l *Line) Runes() []rune {
+	return l.runes
 }
 
 func newLine(s string) *Line {
@@ -47,8 +51,8 @@ func newLine(s string) *Line {
 	}
 
 	return &Line{
-		raw:    s,
-		render: render,
+		raw:   s,
+		runes: render,
 	}
 }
 

@@ -130,8 +130,8 @@ func (c *Cursor) pageUp(height uint) {
 }
 
 func (c *Cursor) pageDown(height, nLines uint) {
-	nextLine := c.lineOffset + height
-	if nextLine > nLines {
+	c.line = c.lineOffset + height - 1
+	if c.line > nLines {
 		c.line = nLines
 	}
 	for i := height; i > 0; i-- {

@@ -165,8 +165,7 @@ func (r *Renderer) renderContent(cursor *editor.Cursor, lines []*editor.Line) er
 		// check the lineIdx against the number of "real" lines to avoid
 		// OutOfBounds errors.
 		if lineIdx < uint(len(lines)) {
-			line := lines[lineIdx].String()
-			if err := r.renderLine(cursor, line); err != nil {
+			if err := r.renderLine(cursor, lines[lineIdx]); err != nil {
 				return err
 			}
 		} else {
@@ -194,15 +193,20 @@ func (r *Renderer) renderEmptyLine() error {
 	return r.renderNewLine()
 }
 
-func (r *Renderer) renderLine(cursor *editor.Cursor, line string) error {
-	leftMargin := min(cursor.ColOffset(), uint(len(line)))
-	line = line[leftMargin:]
-	rightMargin := min(uint(len(line)), r.screen.Width)
-	line = line[:rightMargin]
-	if _, err := r.w.WriteString(line); err != nil {
+func (r *Renderer) renderLine(cursor *editor.Cursor, line *editor.Line) error {
+	str := r.truncateLineForScreen(cursor, line)
+	if _, err := r.w.WriteString(str); err != nil {
 		return fmt.Errorf("write %q: %w", line, err)
 	}
 	return r.renderNewLine()
+}
+
+func (r *Renderer) truncateLineForScreen(cursor *editor.Cursor, line *editor.Line) string {
+	runes := line.Runes()
+	leftMargin := min(cursor.ColOffset(), line.RuneLen())
+	runes = runes[leftMargin:]
+	rightMargin := min(uint(len(runes)), r.screen.Width)
+	return string(runes[:rightMargin])
 }
 
 // renderNewLine clears any text to the right of the cursor position remaining

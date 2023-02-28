@@ -204,7 +204,7 @@ func (e *Editor) frame() Frame {
 }
 
 func (e *Editor) moveCursor(key keynum) {
-	curLineLen := e.currentLine().RenderLen()
+	curLineLen := e.currentLine().RuneLen()
 	switch key {
 	case keyPageUp:
 		e.cursor.pageUp(e.config.Height)
@@ -215,18 +215,18 @@ func (e *Editor) moveCursor(key keynum) {
 	case keyEnd:
 		e.cursor.end(curLineLen)
 	case keyLeft:
-		e.cursor.left(e.prevLine().RenderLen())
+		e.cursor.left(e.prevLine().RuneLen())
 	case keyDown:
 		e.cursor.down(e.len())
 	case keyUp:
 		e.cursor.up()
 	case keyRight:
-		e.cursor.right(curLineLen, e.nextLine().RenderLen(), e.len())
+		e.cursor.right(curLineLen, e.nextLine().RuneLen(), e.len())
 	default:
 		panic(fmt.Errorf("unrecognized cursor key %q", key))
 	}
 
-	e.cursor.snap(e.currentLine().RenderLen())
+	e.cursor.snap(e.currentLine().RuneLen())
 }
 
 func (e *Editor) currentLine() *Line {
