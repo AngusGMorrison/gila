@@ -14,7 +14,7 @@ import (
 
 const (
 	defaultFilename  = "[Untitled]"
-	defaultStatusMsg = "Help: Ctrl-Q = quit"
+	defaultStatusMsg = "Help: Ctrl-S = save | Ctrl-Q = quit"
 	// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
 	// text.
 	nLinesToPreallocate = 1024
@@ -180,10 +180,7 @@ func (e *Editor) processKeypress() bool {
 
 	switch key {
 	case chordSave:
-		if err := e.save(); err != nil {
-			e.readErr = err
-			return false
-		}
+		e.save()
 	case chordQuit:
 		return false
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
@@ -296,15 +293,23 @@ func (e *Editor) String() string {
 	return builder.String()
 }
 
-func (e *Editor) save() error {
+func (e *Editor) save() {
 	if e.filename == "" {
-		return nil
+		return
 	}
 
-	if err := os.WriteFile(e.filepath, []byte(e.String()), 0644); err != nil {
-		return fmt.Errorf("save buffer to %s: %w", e.filename, err)
+	document := e.String()
+	if err := os.WriteFile(e.filepath, []byte(document), 0644); err != nil {
+		e.setStatus("Changes not saved! IO error: %s", err)
+		return
 	}
-	return nil
+
+	e.setStatus("Saved")
+}
+
+func (e *Editor) setStatus(format string, a ...any) {
+	e.statusMsg = fmt.Sprintf(format, a...)
+	e.lastStatusTime = time.Now()
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
