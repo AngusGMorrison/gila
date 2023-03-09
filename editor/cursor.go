@@ -14,8 +14,8 @@ const defaultCursorMargin = 3
 // the editor. Requesting a movement that is not possible is not considered an
 // error.
 type Cursor struct {
-	col, line             uint
-	colOffset, lineOffset uint
+	col, line             int
+	colOffset, lineOffset int
 }
 
 func newCursor() *Cursor {
@@ -26,36 +26,36 @@ func newCursor() *Cursor {
 }
 
 // Col returns the 1-indexed column component of the cursor's position.
-func (c *Cursor) Col() uint {
+func (c *Cursor) Col() int {
 	return c.col
 }
 
 // Line returns the 1-indexed line component of the cursor's position.
-func (c *Cursor) Line() uint {
+func (c *Cursor) Line() int {
 	return c.line
 }
 
 // ColOffset returns the cursor's column offset.
-func (c *Cursor) ColOffset() uint {
+func (c *Cursor) ColOffset() int {
 	return c.colOffset
 }
 
 // LineOffset returns the the cursor's line offset.
-func (c *Cursor) LineOffset() uint {
+func (c *Cursor) LineOffset() int {
 	return c.lineOffset
 }
 
 // X returns the 1-indexed X-coordinate of the cursor relative to the screen.
-func (c *Cursor) X() uint {
+func (c *Cursor) X() int {
 	return c.col - c.colOffset
 }
 
 // x returns the 1-indexed Y-coordinate of the cursor relative to the screen.
-func (c *Cursor) Y() uint {
+func (c *Cursor) Y() int {
 	return c.line - c.lineOffset
 }
 
-func (c *Cursor) left(prevLineLen uint) bool {
+func (c *Cursor) left(prevLineLen int) bool {
 	if c.col > 1 {
 		c.col--
 		return true
@@ -75,7 +75,7 @@ func (c *Cursor) home() bool {
 	return true
 }
 
-func (c *Cursor) right(lineLen, nextLineLen, nLines uint) bool {
+func (c *Cursor) right(lineLen, nextLineLen, nLines int) bool {
 	if c.col <= lineLen {
 		c.col++
 		return true
@@ -87,7 +87,7 @@ func (c *Cursor) right(lineLen, nextLineLen, nLines uint) bool {
 	return false
 }
 
-func (c *Cursor) end(lineLen uint) bool {
+func (c *Cursor) end(lineLen int) bool {
 	if c.col == lineLen+1 {
 		return false
 	}
@@ -97,7 +97,7 @@ func (c *Cursor) end(lineLen uint) bool {
 
 // snap causes the cursor to snap to the end of the line if its current position
 // would cause it to be rendered beyond the end of the line.
-func (c *Cursor) snap(lineLen uint) {
+func (c *Cursor) snap(lineLen int) {
 	if c.col > lineLen+1 {
 		c.end(lineLen)
 
@@ -112,7 +112,7 @@ func (c *Cursor) up() bool {
 	return true
 }
 
-func (c *Cursor) down(nLines uint) bool {
+func (c *Cursor) down(nLines int) bool {
 	if c.line > nLines {
 		return false
 	}
@@ -120,7 +120,7 @@ func (c *Cursor) down(nLines uint) bool {
 	return true
 }
 
-func (c *Cursor) pageUp(height uint) {
+func (c *Cursor) pageUp(height int) {
 	c.line = c.lineOffset + 1
 	for i := height; i > 0; i-- {
 		if !c.up() {
@@ -129,7 +129,7 @@ func (c *Cursor) pageUp(height uint) {
 	}
 }
 
-func (c *Cursor) pageDown(height, nLines uint) {
+func (c *Cursor) pageDown(height, nLines int) {
 	c.line = c.lineOffset + height - 1
 	if c.line > nLines {
 		c.line = nLines
@@ -141,7 +141,7 @@ func (c *Cursor) pageDown(height, nLines uint) {
 	}
 }
 
-func (c *Cursor) scroll(width, height uint) {
+func (c *Cursor) scroll(width, height int) {
 	zeroIdxLine, zeroIdxCol := c.line-1, c.col-1
 	// Scroll up: if the cursor is above the last-known offset, update the
 	// offset to the current cursor position.
@@ -158,7 +158,7 @@ func (c *Cursor) scroll(width, height uint) {
 	// to the the current cursor position plus a margin that allows the user to
 	// see a few characters preceding the cursor.
 	if zeroIdxCol < c.colOffset+3 {
-		var leftMargin uint
+		var leftMargin int
 		if zeroIdxCol >= defaultCursorMargin && c.colOffset >= defaultCursorMargin-1 {
 			leftMargin = zeroIdxCol - defaultCursorMargin
 		}

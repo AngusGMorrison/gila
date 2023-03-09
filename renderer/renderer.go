@@ -26,7 +26,7 @@ type TerminalWriter interface {
 
 // Screen describes the screen to which output will be written.
 type Screen struct {
-	Width, Height uint
+	Width, Height int
 }
 
 // Renderer satisfies editor.Renderer, formatting content and writing to its
@@ -59,7 +59,7 @@ func (r *Renderer) Render(frame editor.Frame) error {
 	if err := r.renderPage(frame.Cursor, frame.Lines); err != nil {
 		return err
 	}
-	if err := r.renderStatusBar(frame.Filename, frame.Cursor.Line(), uint(len(frame.Lines))); err != nil {
+	if err := r.renderStatusBar(frame.Filename, frame.Cursor.Line(), len(frame.Lines)); err != nil {
 		return err
 	}
 	if err := r.renderMessageBar(frame.StatusMsg, frame.LastStatusTime); err != nil {
@@ -95,20 +95,20 @@ func (r *Renderer) renderPage(cursor *editor.Cursor, lines []*editor.Line) error
 
 // renderStatusBar renders a status bar in the second-last row of the screen. It
 // renders the filename, current line number and total lines in inverted colors.
-func (r *Renderer) renderStatusBar(filename string, line, totalLines uint) error {
+func (r *Renderer) renderStatusBar(filename string, line, totalLines int) error {
 	if _, err := r.w.WriteEscapeSequence(escseq.EscGRendInvertColors); err != nil {
 		return err
 	}
 
 	lhs := fmt.Sprintf(" %.20s - %d lines", filename, totalLines)
-	maxLHSLen := min(uint(len(lhs)), r.screen.Width-1) // leave room for at least one padding space on RHS
+	maxLHSLen := min(len(lhs), r.screen.Width-1) // leave room for at least one padding space on RHS
 	if _, err := r.w.WriteString(lhs[:maxLHSLen]); err != nil {
 		return err
 	}
 
 	rhs := fmt.Sprintf("%d/%d ", line, totalLines)
-	for i := uint(maxLHSLen); i < r.screen.Width; {
-		if r.screen.Width-i == uint(len(rhs)) {
+	for i := maxLHSLen; i < r.screen.Width; {
+		if r.screen.Width-i == len(rhs) {
 			if _, err := r.w.WriteString(rhs); err != nil {
 				return err
 			}
@@ -130,7 +130,7 @@ func (r *Renderer) renderStatusBar(filename string, line, totalLines uint) error
 // renderMessageBar renders a status message bar in the last row of the screen,
 // provided that the status message has not yet expired.
 func (r *Renderer) renderMessageBar(msg string, lastStatusTime time.Time) error {
-	maxLen := min(uint(len(msg)), r.screen.Width)
+	maxLen := min(len(msg), r.screen.Width)
 	if maxLen > 0 && time.Since(lastStatusTime) < statusMsgMaxDuration {
 		if _, err := r.w.WriteString(msg[:maxLen]); err != nil {
 			return err
@@ -143,7 +143,7 @@ func (r *Renderer) renderMessageBar(msg string, lastStatusTime time.Time) error 
 }
 
 func (r *Renderer) renderHomepage() error {
-	for y := uint(1); y <= r.screen.Height; y++ {
+	for y := 1; y <= r.screen.Height; y++ {
 		if y == r.screen.Height/3 {
 			if err := r.renderAbout(); err != nil {
 				return err
@@ -158,13 +158,13 @@ func (r *Renderer) renderHomepage() error {
 }
 
 func (r *Renderer) renderContent(cursor *editor.Cursor, lines []*editor.Line) error {
-	for y := uint(1); y <= r.screen.Height; y++ {
+	for y := 1; y <= r.screen.Height; y++ {
 		lineIdx := y + cursor.LineOffset() - 1
 		// We leave an empty line at the bottom of the document for the user to
 		// insert new content which is not represented in lines. Hence, we must
 		// check the lineIdx against the number of "real" lines to avoid
 		// OutOfBounds errors.
-		if lineIdx < uint(len(lines)) {
+		if lineIdx < len(lines) {
 			if err := r.renderLine(cursor, lines[lineIdx]); err != nil {
 				return err
 			}
@@ -179,7 +179,7 @@ func (r *Renderer) renderContent(cursor *editor.Cursor, lines []*editor.Line) er
 
 func (r *Renderer) renderAbout() error {
 	about := center(r.about, r.screen.Width)
-	maxLen := min(uint(len(about)), r.screen.Width)
+	maxLen := min(len(about), r.screen.Width)
 	if _, err := r.w.WriteString(about[:maxLen]); err != nil {
 		return fmt.Errorf("render about message %q: %w", about[:maxLen], err)
 	}
@@ -205,7 +205,7 @@ func (r *Renderer) truncateLineForScreen(cursor *editor.Cursor, line *editor.Lin
 	runes := line.Runes()
 	leftMargin := min(cursor.ColOffset(), line.RuneLen())
 	runes = runes[leftMargin:]
-	rightMargin := min(uint(len(runes)), r.screen.Width)
+	rightMargin := min(len(runes), r.screen.Width)
 	return string(runes[:rightMargin])
 }
 
@@ -221,15 +221,15 @@ func (r *Renderer) renderNewLine() error {
 	return nil
 }
 
-func center(s string, width uint) string {
-	leftPadding := (int(width) + len(s)) / 2
-	rightPadding := -int(width) // Go interprets negative values as padding from the right
+func center(s string, width int) string {
+	leftPadding := (width + len(s)) / 2
+	rightPadding := -width // Go interprets negative values as padding from the right
 	// Bring the right margin all the way over to the left, then add half
 	// (screen width + string len) to push the text into the middle.
 	return fmt.Sprintf("%*s", rightPadding, fmt.Sprintf("%*s", leftPadding, s))
 }
 
-func min(a, b uint) uint {
+func min(a, b int) int {
 	if a < b {
 		return a
 	}

@@ -17,11 +17,11 @@ type Line struct {
 }
 
 // RuneLen returns the length of the line as it appears to the user.
-func (l *Line) RuneLen() uint {
+func (l *Line) RuneLen() int {
 	if l == nil {
 		return 0
 	}
-	return uint(len(l.runes))
+	return len(l.runes)
 }
 
 // String returns the rendered view of the line.

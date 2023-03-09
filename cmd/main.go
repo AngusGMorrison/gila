@@ -53,8 +53,8 @@ func run() (err error) {
 		info.Main.Version,
 		terminalWriter,
 		renderer.Screen{
-			Width:  uint(w),
-			Height: uint(h),
+			Width:  w,
+			Height: h,
 		},
 	)
 
@@ -69,8 +69,8 @@ func run() (err error) {
 		keyReader,
 		renderer,
 		editor.Config{
-			Width:  uint(w),
-			Height: uint(h),
+			Width:  w,
+			Height: h,
 		},
 		logger,
 	)

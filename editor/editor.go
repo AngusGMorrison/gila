@@ -74,7 +74,7 @@ const (
 
 // Config contains editor configuration data.
 type Config struct {
-	Width, Height uint
+	Width, Height int
 }
 
 // Editor holds the state for a text editor. Its methods run the main loop for
@@ -250,8 +250,8 @@ func (e *Editor) nextLine() *Line {
 	return e.lines[e.cursor.line]
 }
 
-func (e *Editor) len() uint {
-	return uint(len(e.lines))
+func (e *Editor) len() int {
+	return len(e.lines)
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
