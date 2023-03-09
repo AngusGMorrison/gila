@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -74,6 +75,7 @@ const (
 	ctrlMask       = 0x1f
 	chordBackspace = 'h' & ctrlMask
 	chordRefresh   = 'l' & ctrlMask
+	chordSave      = 's' & ctrlMask
 	chordQuit      = 'q' & ctrlMask
 )
 
@@ -87,6 +89,7 @@ type Config struct {
 type Editor struct {
 	config         Config
 	cursor         *Cursor
+	filepath       string
 	filename       string
 	statusMsg      string
 	lastStatusTime time.Time
@@ -104,9 +107,9 @@ func New(kr KeyReader, r Renderer, config Config, logger Logger) *Editor {
 	config.Height -= 2 // reserve the last two lines of the screen for the status bar and status message
 	return &Editor{
 		config:         config,
+		filename:       defaultFilename,
 		r:              kr,
 		renderer:       r,
-		filename:       defaultFilename,
 		statusMsg:      defaultStatusMsg,
 		lastStatusTime: time.Now(),
 		cursor:         newCursor(),
@@ -144,6 +147,7 @@ func (e *Editor) open(path string) (err error) {
 	}
 	defer func() { err = f.Close() }()
 
+	e.filepath = path
 	e.filename = filepath.Base(path)
 	e.lines = make([]*Line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
@@ -175,6 +179,11 @@ func (e *Editor) processKeypress() bool {
 	e.logger.Printf("transliterated %q to %q\n", string(rawKey), key)
 
 	switch key {
+	case chordSave:
+		if err := e.save(); err != nil {
+			e.readErr = err
+			return false
+		}
 	case chordQuit:
 		return false
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
@@ -276,6 +285,26 @@ func (e *Editor) insertRune(r rune) {
 	}
 	line.insertRuneAt(r, e.cursor.col-1)
 	e.cursor.col++
+}
+
+func (e *Editor) String() string {
+	var builder strings.Builder
+	for _, l := range e.lines {
+		builder.WriteString(l.String())
+		builder.WriteByte('\n')
+	}
+	return builder.String()
+}
+
+func (e *Editor) save() error {
+	if e.filename == "" {
+		return nil
+	}
+
+	if err := os.WriteFile(e.filepath, []byte(e.String()), 0644); err != nil {
+		return fmt.Errorf("save buffer to %s: %w", e.filename, err)
+	}
+	return nil
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
