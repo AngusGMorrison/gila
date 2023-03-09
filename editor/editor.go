@@ -52,9 +52,12 @@ type Logger interface {
 type keynum rune
 
 const (
-	keyDel keynum = iota + 1e6 // start the function key definitions beyond the Unicode range
+	keyBackspace keynum = iota + 1e6 // start the function key definitions beyond the Unicode range
+	keyLineFeed
+	keyDel
 	keyDown
 	keyEnd
+	keyEsc
 	keyHome
 	keyLeft
 	keyPageUp
@@ -68,8 +71,10 @@ const (
 	// ctrlMask can be combined with any other ASCII character code, CHAR, to
 	// represent Ctrl-CHAR. This is because the terminal handles Ctrl
 	// combinations by zeroing bits 5 and 6 of CHAR (indexed from 0).
-	ctrlMask  = 0x1f
-	chordQuit = 'q' & ctrlMask
+	ctrlMask       = 0x1f
+	chordBackspace = 'h' & ctrlMask
+	chordRefresh   = 'l' & ctrlMask
+	chordQuit      = 'q' & ctrlMask
 )
 
 // Config contains editor configuration data.
@@ -174,6 +179,12 @@ func (e *Editor) processKeypress() bool {
 		return false
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
 		e.moveCursor(key)
+	case keyBackspace, keyDel:
+		// TODO
+	case keyLineFeed:
+		// TODO
+	case keyEsc, chordRefresh:
+		// No-op.
 	default:
 		e.insertRune(rune(key))
 	}
@@ -263,7 +274,7 @@ func (e *Editor) insertRune(r rune) {
 		e.lines = append(e.lines, line)
 
 	}
-	line.insertRuneAt(r, e.cursor.X()-1)
+	line.insertRuneAt(r, e.cursor.col-1)
 	e.cursor.col++
 }
 
@@ -321,6 +332,18 @@ func transliterateKeypress(kp []byte) keynum {
 				return keyEnd
 			}
 		}
+	}
+
+	// Map special characters to keys.
+	switch kp[0] {
+	case chordBackspace, 127:
+		return keyBackspace
+	case '\x04':
+		return keyDel
+	case '\x1b':
+		return keyEsc
+	case '\r':
+		return keyLineFeed
 	}
 
 	r, _ := utf8.DecodeRune(kp)
