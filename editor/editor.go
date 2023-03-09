@@ -33,6 +33,7 @@ type Frame struct {
 	Filename       string
 	StatusMsg      string
 	LastStatusTime time.Time
+	Dirty          bool
 }
 
 // Renderer renders a frame to some arbitrary output.
@@ -95,6 +96,7 @@ type Editor struct {
 	lastStatusTime time.Time
 	// The text in the buffer.
 	lines    []*Line
+	dirty    bool
 	r        KeyReader
 	renderer Renderer
 	readErr  error
@@ -219,6 +221,7 @@ func (e *Editor) frame() Frame {
 		Filename:       e.filename,
 		StatusMsg:      e.statusMsg,
 		LastStatusTime: e.lastStatusTime,
+		Dirty:          e.dirty,
 	}
 }
 
@@ -282,6 +285,7 @@ func (e *Editor) insertRune(r rune) {
 	}
 	line.insertRuneAt(r, e.cursor.col-1)
 	e.cursor.col++
+	e.dirty = true
 }
 
 func (e *Editor) String() string {
@@ -305,6 +309,7 @@ func (e *Editor) save() {
 	}
 
 	e.setStatus("Saved")
+	e.dirty = false
 }
 
 func (e *Editor) setStatus(format string, a ...any) {

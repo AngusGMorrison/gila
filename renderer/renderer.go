@@ -11,7 +11,7 @@ import (
 	"github.com/angusgmorrison/gila/escseq"
 )
 
-const statusMsgMaxDuration = 5 * time.Second
+const statusMsgMaxDuration = 3 * time.Second
 
 // TerminalWriter writes output to a terminal-like device.
 type TerminalWriter interface {
@@ -59,7 +59,7 @@ func (r *Renderer) Render(frame editor.Frame) error {
 	if err := r.renderPage(frame.Cursor, frame.Lines); err != nil {
 		return err
 	}
-	if err := r.renderStatusBar(frame.Filename, frame.Cursor.Line(), len(frame.Lines)); err != nil {
+	if err := r.renderStatusBar(frame.Filename, frame.Cursor.Line(), len(frame.Lines), frame.Dirty); err != nil {
 		return err
 	}
 	if err := r.renderMessageBar(frame.StatusMsg, frame.LastStatusTime); err != nil {
@@ -95,12 +95,16 @@ func (r *Renderer) renderPage(cursor *editor.Cursor, lines []*editor.Line) error
 
 // renderStatusBar renders a status bar in the second-last row of the screen. It
 // renders the filename, current line number and total lines in inverted colors.
-func (r *Renderer) renderStatusBar(filename string, line, totalLines int) error {
+func (r *Renderer) renderStatusBar(filename string, line, totalLines int, dirty bool) error {
 	if _, err := r.w.WriteEscapeSequence(escseq.EscGRendInvertColors); err != nil {
 		return err
 	}
 
-	lhs := fmt.Sprintf(" %.20s - %d lines", filename, totalLines)
+	var modified string
+	if dirty {
+		modified = "(modified)"
+	}
+	lhs := fmt.Sprintf(" %.20s - %d lines %s", filename, totalLines, modified)
 	maxLHSLen := min(len(lhs), r.screen.Width-1) // leave room for at least one padding space on RHS
 	if _, err := r.w.WriteString(lhs[:maxLHSLen]); err != nil {
 		return err
