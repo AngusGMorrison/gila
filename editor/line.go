@@ -5,7 +5,10 @@ import (
 	"unicode/utf8"
 )
 
-const tabStop = 4
+const (
+	tabStop                = 4
+	lineRunesToPreallocate = 128
+)
 
 // Line represents a single line of text.
 // TODO: []rune represents the cleanest way of handling UTF-8-encoded
@@ -33,7 +36,13 @@ func (l *Line) Runes() []rune {
 	return l.runes
 }
 
-func newLine(s string) *Line {
+func newLine() *Line {
+	return &Line{
+		runes: make([]rune, 0, lineRunesToPreallocate),
+	}
+}
+
+func newLineFromString(s string) *Line {
 	// Replace tabs with spaces to override terminal tab stop setting.
 	tabs := strings.Count(s, "\t")
 	spaces := tabs * (tabStop - 1) // the additional spaces required to replace tabs
@@ -54,6 +63,13 @@ func newLine(s string) *Line {
 		raw:   s,
 		runes: render,
 	}
+}
+
+func (l *Line) insertRuneAt(r rune, i int) {
+	if i < 0 || i > l.RuneLen() {
+		i = l.RuneLen()
+	}
+	l.runes = append(l.runes[:i], append([]rune{r}, l.runes[i:]...)...)
 }
 
 // func (l *line) update() {

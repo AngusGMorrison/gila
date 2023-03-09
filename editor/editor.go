@@ -143,7 +143,7 @@ func (e *Editor) open(path string) (err error) {
 	e.lines = make([]*Line, 0, nLinesToPreallocate)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		e.lines = append(e.lines, newLine(scanner.Text()))
+		e.lines = append(e.lines, newLineFromString(scanner.Text()))
 	}
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan line from %s: %w", path, err)
@@ -174,6 +174,8 @@ func (e *Editor) processKeypress() bool {
 		return false
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
 		e.moveCursor(key)
+	default:
+		e.insertRune(rune(key))
 	}
 
 	return true
@@ -252,6 +254,17 @@ func (e *Editor) nextLine() *Line {
 
 func (e *Editor) len() int {
 	return len(e.lines)
+}
+
+func (e *Editor) insertRune(r rune) {
+	line := e.currentLine()
+	if line == nil {
+		line = newLine()
+		e.lines = append(e.lines, line)
+
+	}
+	line.insertRuneAt(r, e.cursor.X()-1)
+	e.cursor.col++
 }
 
 // transliterateKeypress interprets a raw keypress or chord as a UTF-8-encoded rune.
