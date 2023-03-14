@@ -1,5 +1,5 @@
 # Gila
-A high-performance, Vim-like text editor with minimal dependencies inspired by antirez's
+A lightweight text editor with minimal dependencies inspired by antirez's
 [kilo](https://github.com/antirez/kilo).
 
 Gila is currently a work in progress, but feel free to try it out. Simply clone the repo, run `make
