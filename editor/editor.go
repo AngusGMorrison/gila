@@ -196,8 +196,10 @@ func (e *Editor) processKeypress() bool {
 		return true
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
 		e.moveCursor(key)
-	case keyBackspace, keyDel:
-		// TODO
+	case keyBackspace:
+		e.backspace()
+	case keyDel:
+		e.delete()
 	case keyLineFeed:
 		// TODO
 	case keyEsc, chordRefresh:
@@ -301,6 +303,62 @@ func (e *Editor) insertRune(r rune) {
 	line.insertRuneAt(r, e.cursor.col-1)
 	e.cursor.col++
 	e.dirty = true
+}
+
+func (e *Editor) backspace() {
+	line := e.currentLine()
+	if line == nil {
+		return
+	}
+
+	// Deletion at the start of a line causes the current line to be merged into
+	// the previous one.
+	if e.cursor.col == 1 {
+		e.mergeCurrentLineWithPrevious()
+		return
+	}
+
+	line.deleteRuneAt(e.cursor.col - 2)
+	e.cursor.col--
+	e.dirty = true
+}
+
+func (e *Editor) delete() {
+	// Deletion at the end of of a line, causes the next line to be merged into
+	// the current one.
+	if e.cursor.col == e.currentLine().RuneLen()+1 {
+		e.mergeNextLineWithCurrent()
+		return
+	}
+
+	e.cursor.col++
+	e.backspace()
+	e.cursor.col--
+}
+
+func (e *Editor) mergeNextLineWithCurrent() {
+	if e.cursor.line == len(e.lines) {
+		return
+	}
+	e.cursor.line++
+	e.mergeCurrentLineWithPrevious()
+}
+
+func (e *Editor) mergeCurrentLineWithPrevious() {
+	line, prevLine := e.currentLine(), e.prevLine()
+	if line == nil || prevLine == nil {
+		return
+	}
+
+	prevLineLen := prevLine.RuneLen()
+	prevLine.append(line)
+	e.deleteCurrentLine()
+	e.cursor.line--
+	e.cursor.col = prevLineLen
+}
+
+func (e *Editor) deleteCurrentLine() {
+	e.lines = append(e.lines[:e.cursor.line-1], e.lines[e.cursor.line:]...)
 }
 
 func (e *Editor) String() string {

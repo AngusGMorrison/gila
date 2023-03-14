@@ -72,19 +72,13 @@ func (l *Line) insertRuneAt(r rune, i int) {
 	l.runes = append(l.runes[:i], append([]rune{r}, l.runes[i:]...)...)
 }
 
-// func (l *line) update() {
-// 	if cap(l.render) < len(l.raw) {
-// 		l.render = make([]rune, len(l.raw))
-// 		copy(l.render, l.raw)
-// 		return
-// 	}
+func (l *Line) deleteRuneAt(i int) {
+	if i < 0 || i >= l.RuneLen() {
+		i = l.RuneLen() - 1
+	}
+	l.runes = append(l.runes[:i], l.runes[i+1:]...)
+}
 
-// 	if len(l.render) < len(l.raw) {
-// 		copy(l.render, l.raw)
-// 		l.render = append(l.render, l.raw[len(l.render):]...)
-// 		return
-// 	}
-
-// 	copy(l.render, l.raw)
-// 	l.render = l.render[:len(l.raw)]
-// }
+func (l *Line) append(other *Line) {
+	l.runes = append(l.runes, other.runes...)
+}
