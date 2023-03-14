@@ -18,6 +18,8 @@ const (
 	// Preallocate memory to hold pointers to at least nLinesToPreallocate lines of
 	// text.
 	nLinesToPreallocate = 1024
+	// The user must quit twice in a row to quit an unsaved file.
+	forceQuitThreshold = 2
 )
 
 // KeyReader reads a single keystroke or chord from input and returns its raw
@@ -94,6 +96,8 @@ type Editor struct {
 	filename       string
 	statusMsg      string
 	lastStatusTime time.Time
+	// The number of consecutive quit commands, used for force-quitting unsaved documents.
+	quitCount int
 	// The text in the buffer.
 	lines    []*Line
 	dirty    bool
@@ -184,7 +188,12 @@ func (e *Editor) processKeypress() bool {
 	case chordSave:
 		e.save()
 	case chordQuit:
-		return false
+		e.quitCount++
+		if e.canForceQuit() {
+			return false
+		}
+		e.setStatus("WARNING: Unsaved changes. Ctrl-Q to force quit.")
+		return true
 	case keyHome, keyEnd, keyLeft, keyDown, keyUp, keyRight, keyPageUp, keyPageDown:
 		e.moveCursor(key)
 	case keyBackspace, keyDel:
@@ -197,7 +206,13 @@ func (e *Editor) processKeypress() bool {
 		e.insertRune(rune(key))
 	}
 
+	// The consecutive quit count is reset each time a non-quit kepress occurs.
+	e.quitCount = 0
 	return true
+}
+
+func (e *Editor) canForceQuit() bool {
+	return !e.dirty || e.quitCount >= forceQuitThreshold
 }
 
 // render is designed to be called in a tight loop. By returning a
@@ -298,7 +313,7 @@ func (e *Editor) String() string {
 }
 
 func (e *Editor) save() {
-	if e.filename == "" {
+	if e.filename == "" || !e.dirty {
 		return
 	}
 
