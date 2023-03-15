@@ -201,7 +201,7 @@ func (e *Editor) processKeypress() bool {
 	case keyDel:
 		e.delete()
 	case keyLineFeed:
-		// TODO
+		e.newLine()
 	case keyEsc, chordRefresh:
 		// No-op.
 	default:
@@ -361,6 +361,22 @@ func (e *Editor) deleteCurrentLine() {
 	e.lines = append(e.lines[:e.cursor.line-1], e.lines[e.cursor.line:]...)
 }
 
+func (e *Editor) newLine() {
+	if e.cursor.line > len(e.lines) {
+		return
+	}
+	currentLine := e.currentLine()
+	runesToCopy := currentLine.Runes()[e.cursor.col-1:]
+	newLineCap := max(len(runesToCopy), lineRunesToPreallocate)
+	newLineRunes := make([]rune, len(runesToCopy), newLineCap)
+	copy(newLineRunes, runesToCopy)
+	currentLine.runes = currentLine.runes[:e.cursor.col-1]
+	newLine := newLineFromRunes(newLineRunes)
+	e.lines = append(e.lines[:e.cursor.line], append([]*Line{newLine}, e.lines[e.cursor.line:]...)...)
+	e.cursor.line++
+	e.cursor.col = 1
+}
+
 func (e *Editor) String() string {
 	var builder strings.Builder
 	for _, l := range e.lines {
@@ -473,4 +489,11 @@ func isEscapeSequence(keypress []byte) bool {
 		return true
 	}
 	return false
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

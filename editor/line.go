@@ -42,6 +42,12 @@ func newLine() *Line {
 	}
 }
 
+func newLineFromRunes(r []rune) *Line {
+	return &Line{
+		runes: r,
+	}
+}
+
 func newLineFromString(s string) *Line {
 	// Replace tabs with spaces to override terminal tab stop setting.
 	tabs := strings.Count(s, "\t")
