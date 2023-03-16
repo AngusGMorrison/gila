@@ -16,9 +16,9 @@ are provided under `testdata`.
 - [x] Horizontal scrolling
 - [x] Status bar
 - [x] Status message
+- [x] Text editing
 - [ ] Handle grapheme clusters of > 1 code point
 - [ ] Word wrap
-- [ ] Text editing
 - [ ] Search
 - [ ] Syntax highlighting
 - [ ] Mode-based editing (Vim style)
