@@ -55,48 +55,32 @@ func (c *Cursor) Y() int {
 	return c.line - c.lineOffset
 }
 
-func (c *Cursor) left(prevLineLen int) bool {
+func (c *Cursor) left(prevLineLen int) {
 	if c.col > 1 {
 		c.col--
-		return true
+		return
 	}
-	if c.line > 1 {
-		c.line--
-		c.end(prevLineLen)
-		return true
-	}
-	return false
+	c.up()
+	c.end(prevLineLen)
 }
 
-// home returns the cursor to the beginning of the line, returning true if the
-// cursor was moved, and false if it was already at the beginning of the line.
-func (c *Cursor) home() bool {
-	if c.col == 1 {
-		return false
-	}
-	c.col = 1
-	return true
-}
-
-func (c *Cursor) right(lineLen, nextLineLen, nLines int) bool {
+func (c *Cursor) right(lineLen, nLines int) {
 	if c.col <= lineLen {
 		c.col++
-		return true
+		return
 	}
-	if c.line <= nLines {
-		c.line++
-		c.home()
-		return true
-	}
-	return false
+	c.down(nLines)
+	c.home()
 }
 
-func (c *Cursor) end(lineLen int) bool {
-	if c.col == lineLen+1 {
-		return false
-	}
+// home returns the cursor to the beginning of the line.
+func (c *Cursor) home() {
+	c.col = 1
+}
+
+// end moves the cursor to the end of the line.
+func (c *Cursor) end(lineLen int) {
 	c.col = lineLen + 1
-	return true
 }
 
 // snap causes the cursor to snap to the end of the line if its current position
@@ -107,41 +91,34 @@ func (c *Cursor) snap(lineLen int) {
 	}
 }
 
-func (c *Cursor) up() bool {
+func (c *Cursor) up() {
 	if c.line <= 1 {
-		return false
+		return
 	}
 	c.line--
-	return true
 }
 
-func (c *Cursor) down(nLines int) bool {
+func (c *Cursor) down(nLines int) {
 	if c.line > nLines {
-		return false
+		return
 	}
 	c.line++
-	return true
 }
 
 func (c *Cursor) pageUp(height int) {
-	c.line = c.lineOffset + 1
-	for i := height; i > 0; i-- {
-		if !c.up() {
-			return
-		}
-	}
+	// The target line is one full page above the top of the current page, plus
+	// two to account for the line offset's zero index and to leave the top line
+	// of the previous screen visible at the bottom of the new screen.
+	targetLine := c.lineOffset - height + 2
+	c.line = max(1, targetLine)
 }
 
 func (c *Cursor) pageDown(height, nLines int) {
-	c.line = c.lineOffset + height - 1
-	if c.line > nLines {
-		c.line = nLines
-	}
-	for i := height; i > 0; i-- {
-		if !c.down(nLines) {
-			return
-		}
-	}
+	// The target line is one full page below the bottom of the current page,
+	// less one line to allow the last line of the previous screen to be visible
+	// at the top of the new screen.
+	targetLine := (c.lineOffset + height - 1) + height
+	c.line = min(nLines+1, targetLine)
 }
 
 func (c *Cursor) scroll(width, height int) {
@@ -161,11 +138,7 @@ func (c *Cursor) scroll(width, height int) {
 	// to the the current cursor position plus a margin that allows the user to
 	// see a few characters preceding the cursor.
 	if zeroIdxCol < c.colOffset+defaultCursorMargin {
-		var leftMargin int
-		if zeroIdxCol > defaultCursorMargin {
-			leftMargin = zeroIdxCol - defaultCursorMargin
-		}
-		c.colOffset = leftMargin
+		c.colOffset = max(0, zeroIdxCol-defaultCursorMargin)
 	}
 	// Scroll right: if the cursor is right of the right margin, update the
 	// offset so that it shows a full screen of text where the cursor is in the
@@ -173,4 +146,11 @@ func (c *Cursor) scroll(width, height int) {
 	if zeroIdxCol >= c.colOffset+width {
 		c.colOffset = zeroIdxCol - width + 1
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -92,7 +92,6 @@ func Test_Cursor_left(t *testing.T) {
 			name       string
 			c          *Cursor
 			wantCursor *Cursor
-			wantBool   bool
 		}{
 			{
 				name: "col > 1",
@@ -104,7 +103,6 @@ func Test_Cursor_left(t *testing.T) {
 					col:  1,
 					line: 1,
 				},
-				wantBool: true,
 			},
 			{
 				name: "col == 1",
@@ -116,7 +114,6 @@ func Test_Cursor_left(t *testing.T) {
 					col:  1,
 					line: 1,
 				},
-				wantBool: false,
 			},
 		}
 
@@ -126,9 +123,7 @@ func Test_Cursor_left(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				if gotBool := tc.c.left(0); gotBool != tc.wantBool {
-					t.Errorf("expected left() to return %t, got %t", tc.wantBool, gotBool)
-				}
+				tc.c.left(0)
 				if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 					t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 				}
@@ -144,7 +139,6 @@ func Test_Cursor_left(t *testing.T) {
 			c           *Cursor
 			prevLineLen int
 			wantCursor  *Cursor
-			wantBool    bool
 		}{
 			{
 				name: "col > 1",
@@ -157,7 +151,6 @@ func Test_Cursor_left(t *testing.T) {
 					col:  1,
 					line: 2,
 				},
-				wantBool: true,
 			},
 			{
 				name: "col == 1",
@@ -170,7 +163,6 @@ func Test_Cursor_left(t *testing.T) {
 					col:  2,
 					line: 1,
 				},
-				wantBool: true,
 			},
 		}
 
@@ -180,9 +172,7 @@ func Test_Cursor_left(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				if gotBool := tc.c.left(tc.prevLineLen); gotBool != tc.wantBool {
-					t.Errorf("expected left() to return %t, got %t", tc.wantBool, gotBool)
-				}
+				tc.c.left(tc.prevLineLen)
 				if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 					t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 				}
@@ -195,13 +185,11 @@ func Test_Cursor_right(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
-		c           *Cursor
-		lineLen     int
-		nextLineLen int
-		nLines      int
-		wantCursor  *Cursor
-		wantBool    bool
+		name       string
+		c          *Cursor
+		lineLen    int
+		nLines     int
+		wantCursor *Cursor
 	}{
 		{
 			name: "col < lineLen",
@@ -214,7 +202,6 @@ func Test_Cursor_right(t *testing.T) {
 				col:  2,
 				line: 1,
 			},
-			wantBool: true,
 		},
 		{
 			name: "col == lineLen",
@@ -227,7 +214,6 @@ func Test_Cursor_right(t *testing.T) {
 				col:  3,
 				line: 1,
 			},
-			wantBool: true,
 		},
 		{
 			name: "col > lineLen && c.line < nLines",
@@ -235,14 +221,12 @@ func Test_Cursor_right(t *testing.T) {
 				col:  3,
 				line: 1,
 			},
-			lineLen:     2,
-			nextLineLen: 1,
-			nLines:      2,
+			lineLen: 2,
+			nLines:  2,
 			wantCursor: &Cursor{
 				col:  1,
 				line: 2,
 			},
-			wantBool: true,
 		},
 		{
 			name: "col > lineLen && c.line == nLines",
@@ -250,29 +234,25 @@ func Test_Cursor_right(t *testing.T) {
 				col:  3,
 				line: 2,
 			},
-			lineLen:     2,
-			nextLineLen: 1,
-			nLines:      2,
+			lineLen: 2,
+			nLines:  2,
 			wantCursor: &Cursor{
 				col:  1,
 				line: 3,
 			},
-			wantBool: true,
 		},
 		{
 			name: "col > lineLen && c.line > nLines",
 			c: &Cursor{
-				col:  3,
+				col:  1,
 				line: 3,
 			},
-			lineLen:     2,
-			nextLineLen: 1,
-			nLines:      2,
+			lineLen: 0,
+			nLines:  2,
 			wantCursor: &Cursor{
-				col:  3,
+				col:  1,
 				line: 3,
 			},
-			wantBool: false,
 		},
 	}
 
@@ -282,9 +262,7 @@ func Test_Cursor_right(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if gotBool := tc.c.right(tc.lineLen, tc.nextLineLen, tc.nLines); gotBool != tc.wantBool {
-				t.Errorf("expected right() to return %t, got %t", tc.wantBool, gotBool)
-			}
+			tc.c.right(tc.lineLen, tc.nLines)
 			if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 				t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 			}
@@ -299,7 +277,6 @@ func Test_Cursor_home(t *testing.T) {
 		name       string
 		c          *Cursor
 		wantCursor *Cursor
-		wantBool   bool
 	}{
 		{
 			name: "col == 1",
@@ -311,7 +288,6 @@ func Test_Cursor_home(t *testing.T) {
 				col:  1,
 				line: 1,
 			},
-			wantBool: false,
 		},
 		{
 			name: "col > 1",
@@ -323,7 +299,6 @@ func Test_Cursor_home(t *testing.T) {
 				col:  1,
 				line: 1,
 			},
-			wantBool: true,
 		},
 	}
 
@@ -333,9 +308,7 @@ func Test_Cursor_home(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if gotBool := tc.c.home(); gotBool != tc.wantBool {
-				t.Errorf("expected home() to return %t, got %t", tc.wantBool, gotBool)
-			}
+			tc.c.home()
 			if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 				t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 			}
@@ -351,10 +324,9 @@ func Test_Cursor_end(t *testing.T) {
 		c          *Cursor
 		lineLen    int
 		wantCursor *Cursor
-		wantBool   bool
 	}{
 		{
-			name: "when the cursor is at the end of the line, it does not move the cursor and returns false",
+			name: "when the cursor is at the end of the line, it does not move the cursor",
 			c: &Cursor{
 				col:  2,
 				line: 1,
@@ -364,10 +336,9 @@ func Test_Cursor_end(t *testing.T) {
 				col:  2,
 				line: 1,
 			},
-			wantBool: false,
 		},
 		{
-			name: "when the cursor is not at the end of the line, it moves the cursor to the end and returns true",
+			name: "when the cursor is not at the end of the line, it moves the cursor to the end",
 			c: &Cursor{
 				col:  1,
 				line: 1,
@@ -377,7 +348,6 @@ func Test_Cursor_end(t *testing.T) {
 				col:  3,
 				line: 1,
 			},
-			wantBool: true,
 		},
 	}
 
@@ -387,9 +357,7 @@ func Test_Cursor_end(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if gotBool := tc.c.end(tc.lineLen); gotBool != tc.wantBool {
-				t.Errorf("expected end() to return %t, got %t", tc.wantBool, gotBool)
-			}
+			tc.c.end(tc.lineLen)
 			if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 				t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 			}
@@ -404,7 +372,6 @@ func Test_Cursor_up(t *testing.T) {
 		name       string
 		c          *Cursor
 		wantCursor *Cursor
-		wantBool   bool
 	}{
 		{
 			name: "line == 1",
@@ -416,7 +383,6 @@ func Test_Cursor_up(t *testing.T) {
 				col:  1,
 				line: 1,
 			},
-			wantBool: false,
 		},
 		{
 			name: "line > 1",
@@ -428,7 +394,6 @@ func Test_Cursor_up(t *testing.T) {
 				col:  1,
 				line: 1,
 			},
-			wantBool: true,
 		},
 	}
 
@@ -438,9 +403,7 @@ func Test_Cursor_up(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if gotBool := tc.c.up(); gotBool != tc.wantBool {
-				t.Errorf("expected up() to return %t, got %t", tc.wantBool, gotBool)
-			}
+			tc.c.up()
 			if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 				t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 			}
@@ -456,7 +419,6 @@ func Test_Cursor_down(t *testing.T) {
 		c          *Cursor
 		nLines     int
 		wantCursor *Cursor
-		wantBool   bool
 	}{
 		{
 			name: "line > nLines",
@@ -469,7 +431,6 @@ func Test_Cursor_down(t *testing.T) {
 				col:  1,
 				line: 2,
 			},
-			wantBool: false,
 		},
 		{
 			name: "line < nLines",
@@ -482,7 +443,6 @@ func Test_Cursor_down(t *testing.T) {
 				col:  1,
 				line: 2,
 			},
-			wantBool: true,
 		},
 		{
 			name: "line == nLines",
@@ -495,7 +455,6 @@ func Test_Cursor_down(t *testing.T) {
 				col:  1,
 				line: 3,
 			},
-			wantBool: true,
 		},
 	}
 
@@ -505,9 +464,7 @@ func Test_Cursor_down(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if gotBool := tc.c.down(tc.nLines); gotBool != tc.wantBool {
-				t.Errorf("expected down() to return %t, got %t", tc.wantBool, gotBool)
-			}
+			tc.c.down(tc.nLines)
 			if !reflect.DeepEqual(tc.c, tc.wantCursor) {
 				t.Errorf("expected cursor to be %+v, got %+v", tc.wantCursor, tc.c)
 			}
@@ -587,8 +544,7 @@ func Test_Cursor_pageUp(t *testing.T) {
 	}{
 		{
 			name: "when there are more lines to traverse than the height of the screen, " +
-				"it moves the cursor one line below the top of the current screen and " +
-				"returns true",
+				"it moves the cursor one line below the top of the current screen",
 			c: &Cursor{
 				col:        1,
 				line:       20,
@@ -597,13 +553,13 @@ func Test_Cursor_pageUp(t *testing.T) {
 			height: 5,
 			wantCursor: &Cursor{
 				col:        1,
-				line:       11,
+				line:       12,
 				lineOffset: 15,
 			},
 		},
 		{
 			name: "when there are fewer lines to traverse than the height of the screen, " +
-				"it moves the cursor to the top of the document and returns true",
+				"it moves the cursor to the top of the document",
 			c: &Cursor{
 				col:        1,
 				line:       10,
