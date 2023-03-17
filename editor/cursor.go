@@ -62,11 +62,14 @@ func (c *Cursor) left(prevLineLen int) bool {
 	}
 	if c.line > 1 {
 		c.line--
-		return c.end(prevLineLen)
+		c.end(prevLineLen)
+		return true
 	}
 	return false
 }
 
+// home returns the cursor to the beginning of the line, returning true if the
+// cursor was moved, and false if it was already at the beginning of the line.
 func (c *Cursor) home() bool {
 	if c.col == 1 {
 		return false
@@ -82,7 +85,8 @@ func (c *Cursor) right(lineLen, nextLineLen, nLines int) bool {
 	}
 	if c.line <= nLines {
 		c.line++
-		return c.home()
+		c.home()
+		return true
 	}
 	return false
 }
@@ -100,7 +104,6 @@ func (c *Cursor) end(lineLen int) bool {
 func (c *Cursor) snap(lineLen int) {
 	if c.col > lineLen+1 {
 		c.end(lineLen)
-
 	}
 }
 
@@ -157,9 +160,9 @@ func (c *Cursor) scroll(width, height int) {
 	// Scroll left: if the cursor is left of the left margin, update the offset
 	// to the the current cursor position plus a margin that allows the user to
 	// see a few characters preceding the cursor.
-	if zeroIdxCol < c.colOffset+3 {
+	if zeroIdxCol < c.colOffset+defaultCursorMargin {
 		var leftMargin int
-		if zeroIdxCol >= defaultCursorMargin && c.colOffset >= defaultCursorMargin-1 {
+		if zeroIdxCol > defaultCursorMargin {
 			leftMargin = zeroIdxCol - defaultCursorMargin
 		}
 		c.colOffset = leftMargin
