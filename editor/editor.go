@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/angusgmorrison/gila/intutil"
 )
 
 const (
@@ -360,7 +362,7 @@ func (e *Editor) newLine() {
 	}
 	currentLine := e.currentLine()
 	runesToCopy := currentLine.Runes()[e.cursor.col-1:]
-	newLineCap := max(len(runesToCopy), lineRunesToPreallocate)
+	newLineCap := intutil.Max(len(runesToCopy), lineRunesToPreallocate)
 	newLineRunes := make([]rune, len(runesToCopy), newLineCap)
 	copy(newLineRunes, runesToCopy)
 	currentLine.runes = currentLine.runes[:e.cursor.col-1]
@@ -482,11 +484,4 @@ func isEscapeSequence(keypress []byte) bool {
 		return true
 	}
 	return false
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

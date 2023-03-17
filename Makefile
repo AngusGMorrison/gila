@@ -6,6 +6,9 @@ run: ./cmd/main.go
 build: ./cmd/main.go
 	go build -o gila ./cmd/...
 
+test:
+	go test -race ./...
+
 lorem: build
 	./gila testdata/lorem_ipsum.txt
 

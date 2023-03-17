@@ -9,6 +9,7 @@ import (
 
 	"github.com/angusgmorrison/gila/editor"
 	"github.com/angusgmorrison/gila/escseq"
+	"github.com/angusgmorrison/gila/intutil"
 )
 
 const statusMsgMaxDuration = 3 * time.Second
@@ -105,7 +106,7 @@ func (r *Renderer) renderStatusBar(filename string, line, totalLines int, dirty 
 		modified = "(modified)"
 	}
 	lhs := fmt.Sprintf(" %.20s - %d lines %s", filename, totalLines, modified)
-	maxLHSLen := min(len(lhs), r.screen.Width-1) // leave room for at least one padding space on RHS
+	maxLHSLen := intutil.Min(len(lhs), r.screen.Width-1) // leave room for at least one padding space on RHS
 	if _, err := r.w.WriteString(lhs[:maxLHSLen]); err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (r *Renderer) renderStatusBar(filename string, line, totalLines int, dirty 
 // renderMessageBar renders a status message bar in the last row of the screen,
 // provided that the status message has not yet expired.
 func (r *Renderer) renderMessageBar(msg string, lastStatusTime time.Time) error {
-	maxLen := min(len(msg), r.screen.Width)
+	maxLen := intutil.Min(len(msg), r.screen.Width)
 	if maxLen > 0 && time.Since(lastStatusTime) < statusMsgMaxDuration {
 		if _, err := r.w.WriteString(msg[:maxLen]); err != nil {
 			return err
@@ -183,7 +184,7 @@ func (r *Renderer) renderContent(cursor *editor.Cursor, lines []*editor.Line) er
 
 func (r *Renderer) renderAbout() error {
 	about := center(r.about, r.screen.Width)
-	maxLen := min(len(about), r.screen.Width)
+	maxLen := intutil.Min(len(about), r.screen.Width)
 	if _, err := r.w.WriteString(about[:maxLen]); err != nil {
 		return fmt.Errorf("render about message %q: %w", about[:maxLen], err)
 	}
@@ -207,9 +208,9 @@ func (r *Renderer) renderLine(cursor *editor.Cursor, line *editor.Line) error {
 
 func (r *Renderer) truncateLineForScreen(cursor *editor.Cursor, line *editor.Line) string {
 	runes := line.Runes()
-	leftMargin := min(cursor.ColOffset(), line.RuneLen())
+	leftMargin := intutil.Min(cursor.ColOffset(), line.RuneLen())
 	runes = runes[leftMargin:]
-	rightMargin := min(len(runes), r.screen.Width)
+	rightMargin := intutil.Min(len(runes), r.screen.Width)
 	return string(runes[:rightMargin])
 }
 
@@ -231,11 +232,4 @@ func center(s string, width int) string {
 	// Bring the right margin all the way over to the left, then add half
 	// (screen width + string len) to push the text into the middle.
 	return fmt.Sprintf("%*s", rightPadding, fmt.Sprintf("%*s", leftPadding, s))
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

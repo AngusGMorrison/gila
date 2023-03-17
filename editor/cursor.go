@@ -1,5 +1,7 @@
 package editor
 
+import "github.com/angusgmorrison/gila/intutil"
+
 // defaultCursorMargin controls the number of characters between the left-hand
 // edge of the screen and the cursor when scrolling left, allowing the user to
 // view the characters immediately preceding the cursor.
@@ -110,7 +112,7 @@ func (c *Cursor) pageUp(height int) {
 	// two to account for the line offset's zero index and to leave the top line
 	// of the previous screen visible at the bottom of the new screen.
 	targetLine := c.lineOffset - height + 2
-	c.line = max(1, targetLine)
+	c.line = intutil.Max(1, targetLine)
 }
 
 func (c *Cursor) pageDown(height, nLines int) {
@@ -118,7 +120,7 @@ func (c *Cursor) pageDown(height, nLines int) {
 	// less one line to allow the last line of the previous screen to be visible
 	// at the top of the new screen.
 	targetLine := (c.lineOffset + height - 1) + height
-	c.line = min(nLines+1, targetLine)
+	c.line = intutil.Min(nLines+1, targetLine)
 }
 
 func (c *Cursor) scroll(width, height int) {
@@ -138,7 +140,7 @@ func (c *Cursor) scroll(width, height int) {
 	// to the the current cursor position plus a margin that allows the user to
 	// see a few characters preceding the cursor.
 	if zeroIdxCol < c.colOffset+defaultCursorMargin {
-		c.colOffset = max(0, zeroIdxCol-defaultCursorMargin)
+		c.colOffset = intutil.Max(0, zeroIdxCol-defaultCursorMargin)
 	}
 	// Scroll right: if the cursor is right of the right margin, update the
 	// offset so that it shows a full screen of text where the cursor is in the
@@ -146,11 +148,4 @@ func (c *Cursor) scroll(width, height int) {
 	if zeroIdxCol >= c.colOffset+width {
 		c.colOffset = zeroIdxCol - width + 1
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
