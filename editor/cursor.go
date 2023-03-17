@@ -57,6 +57,8 @@ func (c *Cursor) Y() int {
 	return c.line - c.lineOffset
 }
 
+// left moves the cursor left by one character. If the cursor is already at the
+// beginning of the line, it moves up to the end of the previous line.
 func (c *Cursor) left(prevLineLen int) {
 	if c.col > 1 {
 		c.col--
@@ -66,6 +68,8 @@ func (c *Cursor) left(prevLineLen int) {
 	c.end(prevLineLen)
 }
 
+// right moves the cursor right by one character. If the cursor is already at
+// the end of the line, it moves down to the beginning of the next line.
 func (c *Cursor) right(lineLen, nLines int) {
 	if c.col <= lineLen {
 		c.col++
@@ -93,6 +97,8 @@ func (c *Cursor) snap(lineLen int) {
 	}
 }
 
+// up moves the cursor up by one line. If the cursor is already at the top of
+// the document, it does nothing.
 func (c *Cursor) up() {
 	if c.line <= 1 {
 		return
@@ -100,6 +106,8 @@ func (c *Cursor) up() {
 	c.line--
 }
 
+// down moves the cursor down by one line. If the cursor is already at the
+// bottom of the document, it does nothing.
 func (c *Cursor) down(nLines int) {
 	if c.line > nLines {
 		return
