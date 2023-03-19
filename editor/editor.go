@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/angusgmorrison/gila/intutil"
@@ -96,6 +97,7 @@ type Editor struct {
 	cursor         *Cursor
 	filepath       string
 	filename       string
+	promptBuf      *Line
 	statusMsg      string
 	lastStatusTime time.Time
 	// The number of consecutive quit commands, used for force-quitting unsaved documents.
@@ -118,6 +120,7 @@ func New(kr KeyReader, r Renderer, config Config, logger Logger) *Editor {
 		filename:       defaultFilename,
 		r:              kr,
 		renderer:       r,
+		promptBuf:      newLine(),
 		statusMsg:      defaultStatusMsg,
 		lastStatusTime: time.Now(),
 		cursor:         newCursor(),
@@ -188,7 +191,9 @@ func (e *Editor) processKeypress() bool {
 
 	switch key {
 	case chordSave:
-		e.save()
+		if !e.save() {
+			return false
+		}
 	case chordQuit:
 		e.quitCount++
 		if e.canForceQuit() {
@@ -230,6 +235,29 @@ func (e *Editor) render() bool {
 		return false
 	}
 	return true
+}
+
+func (e *Editor) prompt(msg string) bool {
+	for {
+		e.setStatus(msg, e.promptBuf.String())
+		if !e.render() {
+			return false
+		}
+
+		rawKey, err := e.r.ReadKey()
+		if err != nil {
+			e.readErr = err
+			return false
+		}
+
+		key := transliterateKeypress(rawKey)
+		if key == keyLineFeed {
+			e.setStatus("")
+			return true
+		} else if !unicode.IsControl(rune(key)) {
+			e.promptBuf.appendRune(rune(key))
+		}
+	}
 }
 
 // frame returns the current frame.
@@ -381,19 +409,36 @@ func (e *Editor) String() string {
 	return builder.String()
 }
 
-func (e *Editor) save() {
-	if e.filename == "" || !e.dirty {
-		return
+func (e *Editor) save() bool {
+	if !e.dirty {
+		return true
+	}
+	// If the document is new, prompt for a filename.
+	if e.filename == defaultFilename {
+		if !e.prompt("Save as: %s") {
+			return false
+		}
+		e.filepath = e.promptBuf.String()
+		e.filename = filepath.Base(e.filepath)
+		e.promptBuf.clear()
 	}
 
-	document := e.String()
-	if err := os.WriteFile(e.filepath, []byte(document), 0644); err != nil {
+	f, err := os.OpenFile(e.filepath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
 		e.setStatus("Changes not saved! IO error: %s", err)
-		return
+		return true
+	}
+	defer f.Close()
+
+	document := e.String()
+	if _, err := f.WriteString(document); err != nil {
+		e.setStatus("Changes not saved! IO error: %s", err)
+		return true
 	}
 
 	e.setStatus("Saved")
 	e.dirty = false
+	return true
 }
 
 func (e *Editor) setStatus(format string, a ...any) {
