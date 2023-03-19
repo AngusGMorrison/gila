@@ -94,6 +94,10 @@ func (l *Line) deleteRuneAt(i int) {
 	l.runes = append(l.runes[:i], l.runes[i+1:]...)
 }
 
+func (l *Line) deleteLastRune() {
+	l.runes = l.runes[:len(l.runes)-1]
+}
+
 func (l *Line) append(other *Line) {
 	l.runes = append(l.runes, other.runes...)
 }

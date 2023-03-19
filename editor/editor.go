@@ -254,6 +254,12 @@ func (e *Editor) prompt(msg string) bool {
 		if key == keyLineFeed {
 			e.setStatus("")
 			return true
+		} else if key == keyEsc {
+			e.setStatus("")
+			e.promptBuf.clear()
+			return true
+		} else if key == keyBackspace || key == keyDel {
+			e.promptBuf.deleteLastRune()
 		} else if !unicode.IsControl(rune(key)) {
 			e.promptBuf.appendRune(rune(key))
 		}
@@ -415,8 +421,12 @@ func (e *Editor) save() bool {
 	}
 	// If the document is new, prompt for a filename.
 	if e.filename == defaultFilename {
-		if !e.prompt("Save as: %s") {
+		if !e.prompt("Save as: %s") { // IO error
 			return false
+		}
+		if e.promptBuf.RuneLen() == 0 { // no filename provided
+			e.setStatus("Save aborted")
+			return true
 		}
 		e.filepath = e.promptBuf.String()
 		e.filename = filepath.Base(e.filepath)
