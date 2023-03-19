@@ -7,6 +7,8 @@ build` and run the exported binary with the path to a text file as its first arg
 are provided under `testdata`.
 
 ## Progress
+
+### Essentials
 - [x] Enable terminal raw mode
 - [x] Display welcome screen
 - [x] Read and transliterate special keypresses, e.g. arrow keys
@@ -17,11 +19,14 @@ are provided under `testdata`.
 - [x] Status bar
 - [x] Status message
 - [x] Text editing
-- [ ] Handle grapheme clusters of > 1 code point
-- [ ] Word wrap
+- [x] Create and save new documents with a custom file name
+- [ ] Test suite
+
+### Stretch
 - [ ] Search
 - [ ] Syntax highlighting
-- [ ] Mode-based editing (Vim style)
-- [ ] Allow configuration by the user
-- [ ] Test suite
+- [ ] Word wrap
+- [ ] User configuration
 - [ ] Treat space-replaced tabs as a single character for cursor movement
+- [ ] Performance tuning
+- [ ] Handle grapheme clusters of > 1 code point
