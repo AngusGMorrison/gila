@@ -15,7 +15,6 @@ const (
 // strings, but requires allocations to copy from string when reading
 // input, and to string when writing output. Can this be avoided?
 type Line struct {
-	raw   string
 	runes []rune
 }
 
@@ -29,10 +28,16 @@ func (l *Line) RuneLen() int {
 
 // String returns the rendered view of the line.
 func (l *Line) String() string {
+	if l == nil {
+		return ""
+	}
 	return string(l.runes)
 }
 
 func (l *Line) Runes() []rune {
+	if l == nil {
+		return nil
+	}
 	return l.runes
 }
 
@@ -66,7 +71,6 @@ func newLineFromString(s string) *Line {
 	}
 
 	return &Line{
-		raw:   s,
 		runes: render,
 	}
 }
@@ -83,19 +87,26 @@ func (l *Line) appendRune(r rune) {
 }
 
 func (l *Line) clear() {
-	l.raw = ""
 	l.runes = l.runes[:0]
 }
 
 func (l *Line) deleteRuneAt(i int) {
-	if i < 0 || i >= l.RuneLen() {
-		i = l.RuneLen() - 1
+	len := l.RuneLen()
+	if len == 0 {
+		return
+	}
+	if i < 0 || i >= len {
+		i = len - 1
 	}
 	l.runes = append(l.runes[:i], l.runes[i+1:]...)
 }
 
 func (l *Line) deleteLastRune() {
-	l.runes = l.runes[:len(l.runes)-1]
+	len := l.RuneLen()
+	if len == 0 {
+		return
+	}
+	l.runes = l.runes[:len-1]
 }
 
 func (l *Line) append(other *Line) {
